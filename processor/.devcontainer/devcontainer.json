@@ -1,0 +1,10 @@
+{
+  "name": "ClipRefit Codespaces",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": { "version": "3.11" }
+  },
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y ffmpeg && pip install -r requirements.txt && npm install",
+  "forwardPorts": [3000],
+  "portsAttributes": { "3000": { "label": "ClipRefit", "onAutoForward": "openBrowser" } }
+}
