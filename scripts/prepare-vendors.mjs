@@ -5,7 +5,7 @@ const require=createRequire(import.meta.url);
 const root=(pkg)=>path.dirname(require.resolve(pkg+'/package.json'));
 await mkdir('public/vendor/pdf',{recursive:true});
 const pdf=root('pdfjs-dist');
-await copyFile(path.join(pdf,'build/pdf.worker.min.mjs'),'public/vendor/pdf/pdf.worker.min.mjs');
+await copyFile(path.join(pdf,'legacy/build/pdf.worker.min.mjs'),'public/vendor/pdf/pdf.worker.min.mjs');
 for(const d of ['cmaps','standard_fonts','wasm'])await cp(path.join(pdf,d),'public/vendor/pdf/'+d,{recursive:true});
 const ff=path.resolve('node_modules/@ffmpeg/ffmpeg/dist/esm');await cp(ff,'public/vendor/ffmpeg',{recursive:true});
 await copyFile('node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js','public/vendor/ffmpeg-core.js');

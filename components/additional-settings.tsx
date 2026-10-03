@@ -1,0 +1,37 @@
+'use client';
+import {useEffect,useRef,useState} from 'react';
+import type {Tool} from '@/lib/catalog';
+import type {Settings} from '@/lib/engines';
+export function AdditionalSettings({tool,settings:s,update,file}:{tool:Tool;settings:Settings;update:(key:keyof Settings,value:any)=>void;file?:File}){
+  const slug=tool.slug;
+  const number=(key:keyof Settings,label:string,min:number,max:number,step=1)=><label className="field">{label}<input type="number" value={s[key] as number} min={min} max={max} step={step} onChange={e=>update(key,Number(e.target.value))}/></label>;
+  const select=(key:keyof Settings,label:string,values:string[])=><label className="field">{label}<select value={String(s[key])} onChange={e=>update(key,typeof s[key]==='number'?Number(e.target.value):e.target.value)}>{values.map(v=><option key={v} value={v}>{v}</option>)}</select></label>;
+  const textTools=['pdf-editor','sign-pdf','watermark-image','add-text-to-image'];
+  const rectangles=['crop-pdf','redact-pdf','crop-video','merge-video'];
+  const pdfPosition=['pdf-editor','sign-pdf','crop-pdf','redact-pdf'].includes(slug);
+  return <>
+    {tool.note&&<p className="note-box full" style={{gridColumn:'1 / -1'}}>{tool.note}</p>}
+    {pdfPosition&&<><label className="field full">Pages (blank = all)<input value={s.pages} placeholder="1, 3-5" onChange={e=>update('pages',e.target.value)}/></label>{file&&<PdfPlacement file={file} settings={s} update={update}/>}</>}
+    {slug==='pdf-editor'&&select('mode','Annotation',['text','highlight','rectangle'])}
+    {textTools.includes(slug)&&<><label className="field full">{slug==='sign-pdf'?'Signature name':'Text'}<input maxLength={300} value={s.text} onChange={e=>update('text',e.target.value)}/></label>{number('fontSize','Text size',1,300)}<label className="field">Text / annotation colour<input type="color" value={s.color} onChange={e=>update('color',e.target.value)}/></label></>}
+    {(pdfPosition||['crop-video','watermark-image','add-text-to-image'].includes(slug))&&<>{number('x',pdfPosition?'Left (PDF points)':'Left (px)',0,16000)}{number('y',pdfPosition?'Top (PDF points)':'Top (px)',0,16000)}</>}
+    {(rectangles.includes(slug)||(slug==='pdf-editor'&&s.mode!=='text'))&&<>{number('width',pdfPosition?'Width (PDF points)':'Width (px)',1,16000)}{number('height',pdfPosition?'Height (PDF points)':'Height (px)',1,16000)}</>}
+    {slug==='watermark-image'&&number('opacity','Opacity (0–1)',0.05,1,0.05)}
+    {slug==='image-upscaler'&&select('scale','Enlargement',['2','4'])}
+    {slug==='blur-image'&&number('blur','Blur radius (px)',1,100)}
+    {slug==='compress-pdf'&&number('quality','JPEG quality (%)',20,95)}
+    {slug==='gif-compressor'&&<>{number('width','Maximum width (px)',2,1600)}{number('resolution','Frames per second',1,30)}{select('palette','Palette colours',['64','128','256'])}</>}
+    {slug==='video-speed-changer'&&select('speed','Playback speed',['0.25','0.5','0.75','1.25','1.5','2','3','4'])}
+    {slug==='loop-video'&&number('loops','Total repetitions',2,10)}
+    {slug==='change-video-aspect-ratio'&&select('aspect','Output aspect ratio',['16:9','9:16','1:1','4:3'])}
+    {['protect-pdf','unlock-pdf'].includes(slug)&&<label className="field full">{slug==='protect-pdf'?'New opening password':'Current PDF password'}<input type="password" autoComplete="new-password" value={s.password} onChange={e=>update('password',e.target.value)}/></label>}
+    {['ocr-pdf','image-to-text'].includes(slug)&&select('language','Text language',['eng','urd','hin','eng+urd','eng+hin'])}
+    {['add-audio-to-video','add-subtitles-to-video'].includes(slug)&&<label className="field full">{slug==='add-audio-to-video'?'Soundtrack file':'SRT subtitle file'}<input type="file" aria-label={slug==='add-audio-to-video'?'Soundtrack file':'SRT subtitle file'} accept={slug==='add-audio-to-video'?'.mp3,.wav,.m4a,.aac,.ogg':'.srt'} onChange={e=>{const f=e.target.files?.[0];if(f&&f.size>100*1024*1024){e.target.value='';update('auxiliary',null);return;}update('auxiliary',f||null)}}/><small>Maximum auxiliary file size: 100 MB. {s.auxiliary?.name}</small></label>}
+    {slug==='fill-pdf-form'&&<><FormFields file={file}/><label className="field full">Field values (JSON)<textarea aria-label="Field values (JSON)" rows={7} value={s.formValues} onChange={e=>update('formValues',e.target.value)} placeholder={'{"Full Name":"Adnan", "Accept":true}'}/><small>Copy exact field names from the list. Checkbox values must be true or false.</small></label></>}
+  </>;
+}
+function FormFields({file}:{file?:File}){const[info,setInfo]=useState('Reading form fields…');useEffect(()=>{let active=true;(async()=>{try{if(!file)return;const {PDFDocument}=await import('pdf-lib');const doc=await PDFDocument.load(await file.arrayBuffer());const names=doc.getForm().getFields().map(f=>`${f.getName()} (${f.constructor.name})`);if(active)setInfo(names.join('\n')||'No AcroForm fields found. Use PDF Editor to add visible text.');}catch{if(active)setInfo('Could not read fields. Check that the PDF is not encrypted.');}})();return()=>{active=false}},[file]);return <pre className="field full" style={{whiteSpace:'pre-wrap'}}>{info}</pre>;}
+function PdfPlacement({file,settings:s,update}:{file:File;settings:Settings;update:(key:keyof Settings,value:any)=>void}){const canvas=useRef<HTMLCanvasElement>(null);const[page,setPage]=useState(1);const[total,setTotal]=useState(1);const[error,setError]=useState('');const[dimensions,setDimensions]=useState({width:1,height:1});
+  useEffect(()=>{let active=true;let cleanup:(()=>void)|undefined;setError('');(async()=>{try{const{loadPdf,newCanvas}=await import('@/lib/additional-engines');const{task,pdf}=await loadPdf(file);cleanup=()=>{void task.destroy();};if(!active){cleanup();return}setTotal(pdf.numPages);const p=await pdf.getPage(Math.min(page,pdf.numPages)),vp=p.getViewport({scale:1}),surface=newCanvas(vp.width,vp.height);await p.render({canvas:surface,canvasContext:surface.getContext('2d')!,viewport:vp}).promise;if(active&&canvas.current){canvas.current.width=surface.width;canvas.current.height=surface.height;canvas.current.getContext('2d')!.drawImage(surface,0,0);setDimensions({width:vp.width,height:vp.height});}}catch(e){if(active)setError(e instanceof Error?e.message:'Preview unavailable.');}})();return()=>{active=false;cleanup?.();}},[file,page]);
+  return <div className="field full"><label>Preview page <input aria-label="Preview page" type="number" min={1} max={total} value={page} onChange={e=>setPage(Math.max(1,Math.min(total,Number(e.target.value))))}/></label><small>Click the preview to set the top-left position. Set the Pages field separately to choose which pages change.</small>{error?<p role="alert">{error}</p>:<div style={{position:'relative',maxWidth:480,alignSelf:'start',width:'100%'}}><canvas ref={canvas} aria-label="PDF page preview" style={{display:'block',width:'100%',border:'1px solid #aaa',cursor:'crosshair'}} onClick={e=>{const r=e.currentTarget.getBoundingClientRect();update('x',Math.round((e.clientX-r.left)/r.width*dimensions.width));update('y',Math.round((e.clientY-r.top)/r.height*dimensions.height));}}/><span style={{pointerEvents:'none',position:'absolute',left:`${s.x/dimensions.width*100}%`,top:`${s.y/dimensions.height*100}%`,color:'#e11d48',fontSize:20}}>+</span></div>}</div>;
+}

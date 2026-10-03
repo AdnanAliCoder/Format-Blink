@@ -46,3 +46,11 @@ next-env.d.ts
 /work/
 
 *.tsbuildinfo
+
+# Generated browser conversion engines
+/public/vendor/
+__pycache__/
+*.pyc
+
+# Local font-renderer test cache
+/var/cache/

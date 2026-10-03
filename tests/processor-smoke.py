@@ -1,0 +1,46 @@
+import sys, tempfile, json, io, os
+from pathlib import Path
+sys.path.insert(0,str(Path.cwd()/'processor/tools'))
+from convert import convert
+from reportlab.pdfgen.canvas import Canvas
+from reportlab.lib.utils import ImageReader
+from pypdf import PdfReader
+from PIL import Image,ImageDraw,ImageFont
+from docx import Document
+from openpyxl import Workbook,load_workbook
+from pptx import Presentation
+root=Path(os.environ.get('FIXTURE_DIR','/tmp/formatblink-fixtures'));root.mkdir(exist_ok=True)
+c=Canvas(str(root/'sample.pdf'),pagesize=(400,500));c.drawString(40,450,'Format Blink Test SECRET 123');
+for x in [40,150,260]: c.line(x,250,x,350)
+for y in [250,300,350]: c.line(40,y,260,y)
+c.drawString(50,320,'Name');c.drawString(160,320,'Score');c.drawString(50,270,'Adnan');c.drawString(160,270,'93');c.showPage();c.drawString(40,450,'Second page');c.save()
+im=Image.new('RGB',(1000,300),'white');d=ImageDraw.Draw(im);d.text((30,70),'FORMAT BLINK TEST 123',font=ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',48),fill='black');im.save(root/'text.png')
+c=Canvas(str(root/'scanned.pdf'),pagesize=(1000,300));c.drawImage(str(root/'text.png'),0,0,width=1000,height=300);c.save()
+doc=Document();doc.add_paragraph('Format Blink Word fixture');doc.save(root/'sample.docx')
+w=Workbook();w.active.append(['Name','Score']);w.active.append(['Adnan',93]);w.save(root/'sample.xlsx')
+p=Presentation();p.slides.add_slide(p.slide_layouts[5]).shapes.title.text='Format Blink presentation';p.save(root/'sample.pptx')
+(root/'sample.html').write_text('<h1>Format Blink HTML</h1><p>Conversion verified</p>')
+results={}
+for slug,name in [('pdf-to-word','sample.pdf'),('pdf-to-excel','sample.pdf'),('pdf-to-powerpoint','sample.pdf'),('word-to-pdf','sample.docx'),('excel-to-pdf','sample.xlsx'),('powerpoint-to-pdf','sample.pptx'),('protect-pdf','sample.pdf'),('ocr-pdf','scanned.pdf'),('image-to-text','text.png'),('html-to-pdf','sample.html')]:
+ try:
+  with tempfile.TemporaryDirectory() as tmp:
+   out=convert(slug,root/name,{'password':'sample-test-123','language':'eng'},Path(tmp))
+   assert out.stat().st_size>0
+   if slug=='pdf-to-word': assert 'SECRET 123' in '\n'.join(p.text for p in Document(out).paragraphs)
+   if slug=='pdf-to-excel': assert load_workbook(out).active['A2'].value=='Adnan'
+   if slug=='pdf-to-powerpoint': assert len(Presentation(out).slides)==2
+   if slug=='protect-pdf':
+    r=PdfReader(out);assert r.is_encrypted and r.decrypt('sample-test-123');locked=root/'locked.pdf';locked.write_bytes(out.read_bytes())
+   elif out.suffix=='.pdf':
+    r=PdfReader(out);assert len(r.pages)>0
+    if slug=='ocr-pdf': assert 'FORMAT' in r.pages[0].extract_text()
+   if slug=='image-to-text': assert 'FORMAT' in out.read_text()
+   results[slug]='PASS'
+ except Exception as e: results[slug]='FAIL '+str(e)
+with tempfile.TemporaryDirectory() as tmp:
+ out=convert('unlock-pdf',root/'locked.pdf',{'password':'sample-test-123'},Path(tmp));assert not PdfReader(out).is_encrypted;results['unlock-pdf']='PASS'
+ try: convert('unlock-pdf',root/'locked.pdf',{'password':'wrong'},Path(tmp));raise AssertionError('wrong password accepted')
+ except ValueError: results['wrong-password']='PASS'
+print(json.dumps(results,indent=2));(root/'processor-results.json').write_text(json.dumps(results,indent=2))
+
+if any(v.startswith('FAIL') for v in results.values()): raise SystemExit(1)

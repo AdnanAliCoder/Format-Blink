@@ -1,6 +1,7 @@
+import {additionalTools} from './additional-tools';
 import {SITE} from './site';
 export type Category='file'|'image'|'video';
-export type Tool={slug:string;name:string;description:string;category:Category;icon:string;accept:string;output:string;group:string;multiple?:boolean;popular?:boolean;note?:string};
+export type Tool={slug:string;name:string;description:string;category:Category;icon:string;accept:string;output:string;group:string;multiple?:boolean;popular?:boolean;note?:string;processing?:'server'};
 const t=(category:Category,slug:string,name:string,description:string,icon:string,accept:string,output:string,group:string,extra:Partial<Tool>={}):Tool=>({category,slug,name,description,icon,accept,output,group,...extra});
 const img='.jpg,.jpeg,.png,.webp,.avif,.bmp,.gif',vid='.mp4,.webm,.mov,.mkv,.avi,.m4v';
 const ALL_TOOLS:Tool[]=[
@@ -35,7 +36,7 @@ t('video','extract-audio','Extract audio','Save the soundtrack from a video as a
 t('video','resize-video','Resize video','Choose a new width and keep the video proportions.','resize',vid,'mp4','Optimize video'),
 t('video','change-video-resolution','Change video resolution','Export your video at 360p, 480p, 720p or 1080p.','scan',vid,'mp4','Optimize video'),
 t('video','extract-video-frames','Extract video frames','Save still frames from a video as a ZIP of JPG images.','image',vid,'zip','Edit video')];
-export const tools=ALL_TOOLS;
+export const tools=[...ALL_TOOLS,...additionalTools];
 export const toolPath=(tool:Tool)=>`/tools/${tool.slug}/`;
 export const categoryInfo={file:{name:'PDF tools',short:'PDF',description:'Merge, split, organize and convert PDF documents in your browser.',icon:'file',tag:'DOCUMENTS, REFITTED'},image:{name:'Image tools',short:'Image',description:'Convert, compress, resize and edit images directly in your browser.',icon:'image',tag:'PIXELS, REFITTED'},video:{name:'Video & audio tools',short:'Video',description:'Convert, trim, compress and extract audio from short videos on your device.',icon:'video',tag:'MEDIA, REFITTED'}}[SITE.category];
 export const hubs:Record<string,{title:string;description:string;filter:(t:Tool)=>boolean}>={};

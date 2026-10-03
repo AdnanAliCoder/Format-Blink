@@ -61,3 +61,13 @@ Start with `npm run dev` or `npm start` after building. This source uses Vinext 
 
 ## Validation
 TypeScript and production build checks are run on this source. Local HTTP checks cover page responses, login/signup, role enforcement, settings round-trip, exact Google verification file routing, member suspension/deletion and metadata rendering. Generated-PDF checks passed for merging, page extraction, rotation and watermarking. Interactive browser visual QA and image/video end-to-end conversion tests were not available in this session; those conversion engines were retained from the supplied projects.
+
+## 39 additional tools
+
+The catalogue now contains **93 conversion tools: 29 PDF, 35 image and 29 video**, plus Clip Studio. New tools are included automatically in navigation, search, individual metadata and the tool sitemap.
+
+26 of the new tools run in the browser. The other 13 use the separate [tools processor](processor/tools/README.md): Office conversion, OCR, PDF password operations, HTML-to-PDF, background removal and transcription. Configure **Tools processor URL** under Admin → Integrations, or add `toolsProcessorUrl` to `FORMAT_BLINK_CONFIG_JSON` on deployments without a settings database. This is separate from Clip Studio's processor.
+
+No processing server is deployed automatically. Pages requiring it remain visibly unavailable until configured. File uploads are disclosed on those pages; they do not claim on-device processing.
+
+`npm run build` now prepares required PDF.js and FFmpeg assets automatically. Generated vendor assets are not checked into Git. See [verification results](VERIFICATION-39-TOOLS.md) and [test instructions](tests/README.md) for coverage and tool-specific limitations.
