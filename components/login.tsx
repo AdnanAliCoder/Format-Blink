@@ -1,5 +1,5 @@
 'use client';
-import {useState} from 'react';
+import {useMemo,useState} from 'react';
 import {Icon} from './brand';
 
 export default function Login({
@@ -13,6 +13,15 @@ export default function Login({
   const [error,setError]=useState('');
   const [busy,setBusy]=useState(false);
   const [show,setShow]=useState(false);
+
+  const strength=useMemo(()=>{
+    let score=0;
+    if(password.length>=6)score++;
+    if(password.length>=10)score++;
+    if(/[A-Z]/.test(password)&&/[a-z]/.test(password))score++;
+    if(/\d/.test(password)&&/[^A-Za-z0-9]/.test(password))score++;
+    return score;
+  },[password]);
 
   async function submit(e:React.FormEvent){
     e.preventDefault();
@@ -34,103 +43,96 @@ export default function Login({
     }
   }
 
-  const headingTop=signup?'Create your':'Welcome to your';
-  const headingAccent='file toolbox.';
-  const intro=signup
-    ?'Create one account for a cleaner, more connected Format Blink workspace.'
-    :'Everything you need to work with your files, together in Format Blink.';
+  return <div className={'auth-wrap '+(signup?'auth-signup':'auth-login')}>
+    <section className="auth-copy" aria-label={signup?'Create a Format Blink account':'Sign in to Format Blink'}>
+      <span className="eyebrow"><Icon name="check" size={12}/>{signup?'Start free. Upgrade anytime.':'One account. One workspace.'}</span>
+      <h1 className="auth-title">{signup?'Create your ':'Welcome to your '}<span className="accent">{signup?'Format Blink':'file toolbox.'}</span></h1>
+      <p className="auth-desc">{signup?'One account for every file tool. Sign up once and use it across all your devices.':'Everything you need to work with your files, together in Format Blink.'}</p>
 
-  return <div className={'auth-layout auth-showcase '+(signup?'auth-signup':'auth-login')}>
-    <section className="auth-intro" aria-label={signup?'Create a Format Blink account':'Sign in to Format Blink'}>
-      <span className="auth-badge"><Icon name="devices" size={16}/> ONE ACCOUNT. ONE WORKSPACE.</span>
-      <h1>{headingTop}<br/><span>{headingAccent}</span></h1>
-      <p>{intro}</p>
-
-      <div className="auth-visual" aria-hidden="true">
-        <div className="auth-orbit orbit-one"/>
-        <div className="auth-orbit orbit-two"/>
-        <div className="auth-logo-core"><img src="/brand-icon.webp" alt=""/></div>
-        <span className="auth-float auth-float-file"><Icon name="file" size={28}/></span>
-        <span className="auth-float auth-float-image"><Icon name="image" size={28}/></span>
-        <span className="auth-float auth-float-video"><Icon name="video" size={28}/></span>
-        <span className="auth-float auth-float-clip"><Icon name="scissors" size={28}/></span>
-        <span className="auth-dot dot-a"/>
-        <span className="auth-dot dot-b"/>
-        <span className="auth-dot dot-c"/>
-      </div>
-
-      <div className="auth-categories">
+      <div className="shortcut-cards" aria-label="Format Blink workspaces">
         {[
           ['file','PDF','file'],
           ['image','Image','image'],
           ['video','Video','video'],
           ['scissors','Clips','clip'],
-        ].map(([icon,label,key])=><div className={key} key={label}>
-          <span className="tool-icon"><Icon name={icon} size={24}/></span>
+        ].map(([icon,label,key])=><a href={key==='file'?'/pdf':key==='clip'?'/clips':'/'+key} className={'sc-card '+key} key={label}>
+          <span className="sc-icon"><Icon name={icon} size={18}/></span>
           <span>{label}</span>
-        </div>)}
+        </a>)}
       </div>
 
-      <div className="auth-note">
-        <Icon name="shield" size={21}/>
-        <p>You can use browser conversion tools without an account.<br/>Your files stay on your device.</p>
+      <div className="security-note">
+        <Icon name="shield" size={18}/>
+        <span>{signup?'Your files stay on your device. We never upload them without your permission.':'You can still use browser conversion tools without an account. Files stay on your device.'}</span>
+      </div>
+
+      <div className="auth-illu" aria-hidden="true">
+        <div className="stack"><Icon name={signup?'devices':'file'} size={90}/></div>
+        <span className="fl f1"><Icon name="file" size={26}/></span>
+        <span className="fl f2"><Icon name="image" size={26}/></span>
+        <span className="fl f3"><Icon name="video" size={26}/></span>
+        <span className="fl f4"><Icon name="scissors" size={26}/></span>
       </div>
     </section>
 
     <section className="auth-card">
-      <div className="auth-card-glow" aria-hidden="true"/>
-      <span className="section-kicker">FORMAT BLINK ACCOUNT</span>
-      <h2>{title||(signup?'Create your account':'Welcome back')}</h2>
-      <p>{description||(signup?'Set up your workspace in a few seconds.':'Sign in to your workspace.')}</p>
+      <span className="eyebrow"><Icon name="check" size={12}/>{signup?'Create account':'Format Blink account'}</span>
+      <h2>{title||(signup?'Get started for free':'Welcome back')}</h2>
+      <p className="sub">{description||(signup?'No credit card required.':'Sign in to your workspace.')}</p>
 
       <form onSubmit={submit}>
-        {signup&&<label className="field">
-          <span>Your name</span>
-          <span className="auth-input">
-            <Icon name="file" size={18}/>
-            <input required autoComplete="name" value={name} onChange={e=>setName(e.target.value)} placeholder="Full name"/>
-          </span>
-        </label>}
+        {signup&&<div className="field">
+          <label htmlFor="signup-name">Full name</label>
+          <div className="field-wrap">
+            <Icon name="devices" size={16}/>
+            <input id="signup-name" required autoComplete="name" value={name} onChange={e=>setName(e.target.value)} placeholder="Your name"/>
+          </div>
+        </div>}
 
-        <label className="field">
-          <span>Email address</span>
-          <span className="auth-input">
-            <Icon name="mail" size={18}/>
-            <input type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com"/>
-          </span>
-        </label>
+        <div className="field">
+          <label htmlFor={signup?'signup-email':'login-email'}>Email address</label>
+          <div className="field-wrap">
+            <Icon name="mail" size={16}/>
+            <input id={signup?'signup-email':'login-email'} type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com"/>
+          </div>
+        </div>
 
-        <label className="field">
-          <span>Password</span>
-          <span className="auth-input password-field">
-            <Icon name="lock" size={18}/>
-            <input required minLength={8} type={show?'text':'password'} autoComplete={signup?'new-password':'current-password'} value={password} onChange={e=>setPassword(e.target.value)} placeholder="At least 8 characters"/>
-            <button type="button" onClick={()=>setShow(!show)} aria-label={show?'Hide password':'Show password'}>{show?'Hide':'Show'}</button>
-          </span>
-        </label>
+        <div className="field">
+          <label htmlFor={signup?'signup-password':'login-password'}>Password</label>
+          <div className="field-wrap">
+            <Icon name="lock" size={16}/>
+            <input id={signup?'signup-password':'login-password'} required minLength={8} type={show?'text':'password'} autoComplete={signup?'new-password':'current-password'} value={password} onChange={e=>setPassword(e.target.value)} placeholder={signup?'Create a strong password':'At least 8 characters'}/>
+            <button type="button" className="show" onClick={()=>setShow(!show)}>{show?'Hide':'Show'}</button>
+          </div>
+          {signup&&<div className={'pw-strength '+(strength?'s'+strength:'')} aria-label={'Password strength '+strength+' of 4'}><i/><i/><i/><i/></div>}
+        </div>
 
-        {signup&&<label className="terms-check">
+        {signup&&<label className="terms">
           <input type="checkbox" required/>
-          <span>I agree to the <a href="/terms">Terms</a> and <a href="/privacy">Privacy policy</a>.</span>
+          <span>I agree to the <a href="/terms">Terms of Service</a> and <a href="/privacy">Privacy Policy</a>.</span>
         </label>}
 
         {error&&<p role="alert" className="error-message">{error}</p>}
 
-        <button className="btn primary full auth-submit" disabled={busy}>
-          <span>{busy?'Please wait…':signup?'Create account':'Log in'}</span>
-          {!busy&&<Icon name="chevron" size={18}/>}
+        <button className="auth-btn" disabled={busy}>
+          {busy?'Please wait…':signup?'Create account':'Log in'}
+          {!busy&&<Icon name="chevron" size={16}/>}
         </button>
       </form>
 
-      <p className="auth-switch">
-        {signup?'Already have an account?':'New to Format Blink?'}{' '}
-        <a href={signup?'/login':'/signup'}>{signup?'Log in':'Create account'}</a>
-      </p>
+      <p className="auth-foot">{signup?'Already have an account?':'New to Format Blink?'} <a href={signup?'/login':'/signup'}>{signup?'Log in':'Create account'}</a></p>
 
-      {!signup&&<div className="demo-box">
-        <div className="demo-title"><span><Icon name="devices" size={19}/></span><div><strong>Explore the admin demo</strong><p>A shared demo account for reviewing the website controls.</p></div></div>
-        <button className="btn secondary full" onClick={()=>{setEmail('admin@formatblink.demo');setPassword('BlinkDemo!2026')}}>Use demo account</button>
-        <small>admin@formatblink.demo · BlinkDemo!2026</small>
+      <div className="divider">or</div>
+      <div className="social-row" aria-label="Social sign-in options">
+        <button type="button" className="social-btn" disabled title="Social sign-in is not connected yet"><span className="social-letter">G</span>Google</button>
+        <button type="button" className="social-btn" disabled title="Social sign-in is not connected yet"><span className="social-letter apple-mark">●</span>Apple</button>
+      </div>
+
+      {!signup&&<div className="demo-panel">
+        <div className="head"><Icon name="devices" size={16}/>Explore the admin demo</div>
+        <p>A shared demo account for reviewing the website controls.</p>
+        <button type="button" className="demo-btn" onClick={()=>{setEmail('admin@formatblink.demo');setPassword('BlinkDemo!2026')}}>Use demo account</button>
+        <div className="cred">admin@formatblink.demo · BlinkDemo!2026</div>
       </div>}
     </section>
   </div>;
