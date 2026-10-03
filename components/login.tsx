@@ -61,8 +61,8 @@ export default function Login({
           <svg className="auth-links" viewBox="0 0 430 300" preserveAspectRatio="none">
             <path d="M215 150 L48 42"/><path d="M215 150 L382 45"/><path d="M215 150 L46 255"/><path d="M215 150 L382 250"/>
             <circle className="link-node" cx="48" cy="42" r="3"/><circle className="link-node" cx="382" cy="45" r="3"/><circle className="link-node" cx="46" cy="255" r="3"/><circle className="link-node" cx="382" cy="250" r="3"/>
-            <circle className="link-runner runner-blue" r="4"><animateMotion dur="10s" repeatCount="indefinite" path="M215 150 L48 42 L215 150 L382 45 L215 150"/></circle>
-            <circle className="link-runner runner-purple" r="4"><animateMotion dur="11.5s" begin="-3.5s" repeatCount="indefinite" path="M215 150 L46 255 L215 150 L382 250 L215 150"/></circle>
+            <circle className="link-runner runner-blue" r="4"><animateMotion dur="14s" repeatCount="indefinite" rotate="auto" path="M215 150 L48 42 L215 150 L46 255 L215 150 L382 250 L215 150 L382 45 L215 150"/></circle>
+            <circle className="link-runner runner-purple" r="4"><animateMotion dur="14s" begin="-7s" repeatCount="indefinite" rotate="auto" path="M215 150 L48 42 L215 150 L46 255 L215 150 L382 250 L215 150 L382 45 L215 150"/></circle>
           </svg>
           <div className="stack">{visualImage?<img src={visualImage} alt=""/>:<Icon name="layers" size={70}/>}</div>
           <span className="fl f1"><Icon name="file" size={26}/></span>
