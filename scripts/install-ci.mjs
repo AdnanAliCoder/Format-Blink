@@ -1,11 +1,11 @@
 import { spawnSync } from "node:child_process";
 import { accessSync, constants } from "node:fs";
 import path from "node:path";
-import path from "node:path";
 import { fileURLToPath } from "node:url";
-const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 import { readExecutionProfile } from "./execution-profile.mjs";
 import { runNpmInstall } from "./npm-install.mjs";
+
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 if (!process.env.npm_execpath) {
   throw new Error("Run this installer with npm run install:ci.");
@@ -28,11 +28,10 @@ if (readExecutionProfile() === "managed-linux") {
   process.exit(result.status ?? 1);
 }
 
-// Invoke npm's JavaScript entrypoint, avoiding platform-specific shell shims.
 const installed = await runNpmInstall([
   process.execPath,
-    process.env.npm_execpath, "ci", "--prefix", projectRoot, "--workspaces=false",
-    "--include=dev", "--include=optional", "--prefer-offline", "--no-audit", "--no-fund",
+  process.env.npm_execpath, "ci", "--prefix", projectRoot, "--workspaces=false",
+  "--include=dev", "--include=optional", "--prefer-offline", "--no-audit", "--no-fund",
 ]);
 if (installed.signal) process.kill(process.pid, installed.signal);
 if (installed.code !== 0 || installed.signal) process.exit(installed.code || 1);
