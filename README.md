@@ -64,10 +64,21 @@ TypeScript and production build checks are run on this source. Local HTTP checks
 
 ## 39 additional tools
 
-The catalogue now contains **93 conversion tools: 29 PDF, 35 image and 29 video**, plus Clip Studio. New tools are included automatically in navigation, search, individual metadata and the tool sitemap.
+The catalogue contains **93 conversion tools: 29 PDF, 35 image and 29 video**, plus Clip Studio. The 39 added tools are included automatically in navigation, search, individual metadata and the tool sitemap.
 
-26 of the new tools run in the browser. The other 13 use the separate [tools processor](processor/tools/README.md): Office conversion, OCR, PDF password operations, HTML-to-PDF, background removal and transcription. Configure **Tools processor URL** under Admin → Integrations, or add `toolsProcessorUrl` to `FORMAT_BLINK_CONFIG_JSON` on deployments without a settings database. This is separate from Clip Studio's processor.
+### Processing priority
 
-No processing server is deployed automatically. Pages requiring it remain visibly unavailable until configured. File uploads are disclosed on those pages; they do not claim on-device processing.
+Format Blink is intentionally **device-first**:
 
-`npm run build` now prepares required PDF.js and FFmpeg assets automatically. Generated vendor assets are not checked into Git. See [verification results](VERIFICATION-39-TOOLS.md) and [test instructions](tests/README.md) for coverage and tool-specific limitations.
+1. **On-device first** — all existing browser tools plus 26 of the 39 added tools run in the user's browser. This keeps conversion CPU/RAM on the user's device and avoids uploading the file.
+2. **Dedicated tools processor only when browser processing is not practical** — 13 tools use `processor/tools`: Office conversion, OCR, PDF password operations, HTML-to-PDF, background removal and transcription.
+3. **Clip Studio has its own long-media processor** — 2–3 hour video transcription/rendering belongs in the separate Clip Studio processor. Large media is not routed through the ordinary Vercel request path.
+4. **Vercel remains the app/control layer** — pages, UI, lightweight APIs and configuration live on Vercel. Heavy file bytes are not intentionally proxied through Vercel Functions.
+
+This means **80 of 93 conversion tools are on-device** (the original 54 plus 26 new browser tools). Only the 13 conversions that need native/AI/document engines require the separate tools processor.
+
+No processor is deployed automatically. Pages requiring it remain visibly unavailable until a processor URL is configured. Files are uploaded only after the user explicitly starts one of those processor tools.
+
+For deployments without a settings database, `toolsProcessorUrl` can temporarily be supplied through `FORMAT_BLINK_CONFIG_JSON`. After the Supabase migration, the same setting can be persisted from Admin.
+
+See [PROCESSING-ARCHITECTURE.md](PROCESSING-ARCHITECTURE.md), [verification results](VERIFICATION-39-TOOLS.md) and [processor deployment notes](processor/tools/README.md).
