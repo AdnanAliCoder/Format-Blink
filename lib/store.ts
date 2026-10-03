@@ -24,12 +24,24 @@ export function database():DatabaseLike{
   return db;
 }
 
+function withClipProcessor(config:Config):Config{
+  const endpoint=process.env.CLIP_STUDIO_PROCESSOR_URL?.trim();
+  if(config.processorUrl||!endpoint)return config;
+  try{
+    const url=new URL(endpoint);
+    if(url.protocol==='https:'||(url.protocol==='http:'&&['localhost','127.0.0.1'].includes(url.hostname))){
+      return {...config,processorUrl:url.href.replace(/\/$/,'')};
+    }
+  }catch{ /* Keep the connection visibly unavailable for invalid endpoints. */ }
+  return config;
+}
+
 export async function getConfig():Promise<Config>{
   const db=runtimeDatabase();
   if(db){
     try{
       const row=await db.prepare('SELECT value FROM settings WHERE id = ?').bind('site').first<{value:string}>();
-      if(row?.value)return mergeConfig(JSON.parse(row.value));
+      if(row?.value)return withClipProcessor(mergeConfig(JSON.parse(row.value)));
     }catch(error){
       console.error('Format Blink settings database is unavailable; using default settings.',error);
     }
@@ -37,11 +49,11 @@ export async function getConfig():Promise<Config>{
 
   const envValue=process.env.FORMAT_BLINK_CONFIG_JSON;
   if(envValue){
-    try{return mergeConfig(JSON.parse(envValue));}
+    try{return withClipProcessor(mergeConfig(JSON.parse(envValue)));}
     catch(error){console.error('FORMAT_BLINK_CONFIG_JSON is invalid; using default settings.',error);}
   }
 
-  return structuredClone(defaultConfig);
+  return withClipProcessor(structuredClone(defaultConfig));
 }
 
 export async function saveConfig(value:Config){

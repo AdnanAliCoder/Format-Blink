@@ -6,7 +6,7 @@ Combined PDF, image, video and Clip Studio website, using the supplied Format Bl
 - All original browser PDF, image and video tools, with their original conversion engines.
 - Four category homepages: `/pdf`, `/image`, `/video`, `/clips`.
 - Individual tool routes, guides, format explanations and public information pages.
-- Clip Studio upload or direct-video-link input, preview, transcript selection, clip grouping, caption controls and render workflow. A processing server must be connected before transcription/rendering can run.
+- Clip Studio uploads and public YouTube/direct-video-link import, full seekable preview, timestamped transcript batch selection, gap-free clip grouping, per-clip crop/text/shape/caption controls and asynchronous batch MP4 export. A processing server must be connected before transcription/rendering can run.
 - Persistent demo accounts, administrator settings and activity records.
 - Shared header/footer, mobile navigation, persistent light/dark mode, local fonts and supplied branding.
 - Consent-controlled GA4 and AdSense integration, sponsor slots, Google verification HTML uploads and meta-token support.
@@ -55,7 +55,7 @@ Start with `npm run dev` or `npm start` after building. This source uses Vinext 
 ## Processing limits
 - PDF/image tools process on-device using pdf-lib, PDF.js, canvas and the original format libraries.
 - Browser video tools use FFmpeg WebAssembly loaded only when processing starts. They are designed for short videos, not 2–3 hour source recordings. Browser codec, memory and format limitations still apply.
-- Clip Studio needs an HTTPS service with the supplied API contract. Supabase itself is not an FFmpeg/transcription worker. Original processing handlers are retained under `processor/` as integration reference, not as a deployed service.
+- Clip Studio needs an HTTPS service with the supplied API contract. Supabase itself is not an FFmpeg/transcription worker. The runnable dedicated service is in `processor/studio` with Docker deployment instructions. A live service URL must be configured; source code alone does not provision the processor.
 - AdSense needs a valid, approved publisher/site configuration. Saving an ID does not grant Google approval.
 - The private preview cannot be crawled by Google. Search Console verification becomes useful after deployment to the final publicly accessible origin.
 
@@ -82,3 +82,7 @@ No processor is deployed automatically. Pages requiring it remain visibly unavai
 For deployments without a settings database, `toolsProcessorUrl` can temporarily be supplied through `FORMAT_BLINK_CONFIG_JSON`. After the Supabase migration, the same setting can be persisted from Admin.
 
 See [PROCESSING-ARCHITECTURE.md](PROCESSING-ARCHITECTURE.md), [verification results](VERIFICATION-39-TOOLS.md) and [processor deployment notes](processor/tools/README.md).
+
+## Clip Studio long-video service
+
+See [deployment and API instructions](processor/studio/README.md). Run `python tests/clip-studio-api.py` after installing the studio requirements to verify real upload, seeking, noncontiguous rendering, captions, crop, overlays, mute and deletion.

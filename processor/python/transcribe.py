@@ -1,4 +1,5 @@
-import os,sys,json
+import os,sys,json,wave
+import numpy as np
 from faster_whisper import WhisperModel
 
 if len(sys.argv)<2:
@@ -10,7 +11,13 @@ model=WhisperModel(
     device=os.environ.get("WHISPER_DEVICE","cpu"),
     compute_type=os.environ.get("WHISPER_COMPUTE_TYPE","int8")
 )
-segments,info=model.transcribe(audio,beam_size=5,vad_filter=True,word_timestamps=True)
+# FFmpeg supplies mono 16 kHz PCM. Pass samples directly: PyAV 19 removed
+# metadata_errors used by faster-whisper 1.1.1's file decoder.
+with wave.open(audio, "rb") as wav:
+    if wav.getnchannels()!=1 or wav.getframerate()!=16000 or wav.getsampwidth()!=2:
+        raise ValueError("Expected mono 16 kHz PCM16 audio")
+    samples=np.frombuffer(wav.readframes(wav.getnframes()),dtype="<i2").astype(np.float32)/32768.0
+segments,info=model.transcribe(samples,beam_size=5,vad_filter=True,word_timestamps=True)
 
 raw=[]
 for s in segments:

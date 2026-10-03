@@ -1,294 +1,1106 @@
 "use client";
-import { useMemo,useRef,useState } from "react";
-const AdSlot=({name}:{name:string})=>null;
-
-type Word={start:number;end:number;word:string};
-type Seg={id:number;start:number;end:number;text:string;words:Word[]};
-type Transcript={language:string;language_probability:number;segments:Seg[]};
-type Clip={id:string;title:string;segmentIds:number[];start:number;end:number;renderedUrl?:string};
-
-const format=(s:number)=>`${String(Math.floor(s/60)).padStart(2,"0")}:${String(Math.floor(s%60)).padStart(2,"0")}`;
-const cleanServerText=(raw:string)=>{
-  try{
-    return new DOMParser().parseFromString(raw,"text/html").body.textContent?.replace(/\s+/g," ").trim()||raw.slice(0,500);
-  }catch{
-    return raw.slice(0,500);
-  }
+import { useEffect, useMemo, useRef, useState } from "react";
+type Seg = { id: number; start: number; end: number; text: string };
+type Range = { start: number; end: number };
+type ProcessorData = {
+  taskId?: string;
+  jobId: string;
+  sourceUrl: string;
+  duration: number;
+  width: number;
+  height: number;
+  status?: string;
+  error?: string;
+  detail?: string;
+  transcript: { segments: Seg[]; language: string };
+  url: string;
 };
-
-export default function ClipStudio({processorBase=""}:{processorBase?:string}){
-  const input=useRef<HTMLInputElement>(null);
-  const [drag,setDrag]=useState(false);
-  const [file,setFile]=useState<File|null>(null);
-  const [sourceUrl,setSourceUrl]=useState("");
-  const [remoteUrl,setRemoteUrl]=useState("");
-  const [linkValue,setLinkValue]=useState("");
-  const [linkLoading,setLinkLoading]=useState(false);
-  const [jobId,setJobId]=useState("");
-  const [transcript,setTranscript]=useState<Transcript|null>(null);
-  const [selected,setSelected]=useState<Set<number>>(new Set());
-  const [clips,setClips]=useState<Clip[]>([]);
-  const [activeClip,setActiveClip]=useState("");
-  const [status,setStatus]=useState("");
-  const [progress,setProgress]=useState(0);
-  const [error,setError]=useState("");
-  const [aspect,setAspect]=useState("source");
-  const [captions,setCaptions]=useState(true);
-  const [fontSize,setFontSize]=useState(52);
-  const [textColor,setTextColor]=useState("#ffffff");
-  const [background,setBackground]=useState(true);
-  const [backgroundColor,setBackgroundColor]=useState("#000000");
-  const [position,setPosition]=useState("bottom");
-  const [overlayText,setOverlayText]=useState("");
-  const [overlayColor,setOverlayColor]=useState("#ffffff");
-  const [overlaySize,setOverlaySize]=useState(46);
-  const [rendering,setRendering]=useState(false);
-
-
-  const active=useMemo(()=>clips.find(c=>c.id===activeClip)||null,[clips,activeClip]);
-  const step=active?3:transcript?2:1;
-
-  function resetWork(){
+const message = (error: unknown) =>
+  error instanceof Error ? error.message : "Processing failed. Please retry.";
+type Clip = {
+  id: string;
+  title: string;
+  ranges: Range[];
+  url?: string;
+  settings: Settings;
+};
+type Settings = {
+  aspect: string;
+  cropX: number;
+  cropY: number;
+  captions: boolean;
+  fontSize: number;
+  textColor: string;
+  background: boolean;
+  backgroundColor: string;
+  position: string;
+  overlayText: string;
+  overlayColor: string;
+  overlaySize: number;
+  shape: string;
+  shapeColor: string;
+  mute: boolean;
+};
+const defaults: Settings = {
+  aspect: "9:16",
+  cropX: 0.5,
+  cropY: 0.5,
+  captions: true,
+  fontSize: 52,
+  textColor: "#ffffff",
+  background: true,
+  backgroundColor: "#000000",
+  position: "bottom",
+  overlayText: "",
+  overlayColor: "#ffffff",
+  overlaySize: 46,
+  shape: "none",
+  shapeColor: "#000000",
+  mute: false,
+};
+const time = (s: number) =>
+  `${Math.floor(s / 3600) ? Math.floor(s / 3600) + ":" : ""}${String(Math.floor(s / 60) % 60).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+const duration = (ranges: Range[]) =>
+  ranges.reduce((sum, r) => sum + r.end - r.start, 0);
+function mergeRanges(items: Range[]) {
+  const result: Range[] = [];
+  for (const item of [...items].sort((a, b) => a.start - b.start)) {
+    const last = result.at(-1);
+    if (last && item.start <= last.end + 0.03)
+      last.end = Math.max(last.end, item.end);
+    else result.push({ ...item });
+  }
+  return result;
+}
+export default function ClipStudio({
+  processorBase = "",
+}: {
+  processorBase?: string;
+}) {
+  const base = processorBase.replace(/\/$/, "");
+  const [file, setFile] = useState<File | null>(null),
+    [link, setLink] = useState(""),
+    [source, setSource] = useState(""),
+    [jobId, setJobId] = useState(""),
+    [seconds, setSeconds] = useState(0),
+    [dimensions, setDimensions] = useState({ width: 16, height: 9 });
+  const [segments, setSegments] = useState<Seg[]>([]),
+    [language, setLanguage] = useState(""),
+    [selected, setSelected] = useState<Set<number>>(new Set()),
+    [clips, setClips] = useState<Clip[]>([]),
+    [activeId, setActiveId] = useState("");
+  const [busy, setBusy] = useState(false),
+    [status, setStatus] = useState(""),
+    [error, setError] = useState(""),
+    [progress, setProgress] = useState(0),
+    [current, setCurrent] = useState(0),
+    [manualStart, setManualStart] = useState(0),
+    [manualEnd, setManualEnd] = useState(60),
+    [batchLength, setBatchLength] = useState(60);
+  const video = useRef<HTMLVideoElement>(null),
+    local = useRef(""),
+    generation = useRef(0),
+    mounted = useRef(true),
+    part = useRef(0);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      if (local.current) URL.revokeObjectURL(local.current);
+    };
+  }, []);
+  const active = clips.find((c) => c.id === activeId),
+    settings = active?.settings || defaults;
+  const selectedRanges = useMemo(
+    () => mergeRanges(segments.filter((s) => selected.has(s.id))),
+    [segments, selected],
+  );
+  function update(patch: Partial<Clip>) {
+    setClips((all) =>
+      all.map((c) =>
+        c.id === activeId ? { ...c, ...patch, url: undefined } : c,
+      ),
+    );
+  }
+  function style(patch: Partial<Settings>) {
+    update({ settings: { ...settings, ...patch } });
+  }
+  const absolute = (url: string) => (url.startsWith("http") ? url : base + url);
+  async function response(r: Response) {
+    const raw = await r.text();
+    let d: ProcessorData;
+    try {
+      d = JSON.parse(raw);
+    } catch {
+      throw new Error(
+        `Processor returned HTTP ${r.status}. Check its URL and connection.`,
+      );
+    }
+    if (!r.ok) throw new Error(d.error || d.detail || `HTTP ${r.status}`);
+    return d;
+  }
+  async function request(path: string, body: unknown) {
+    return response(
+      await fetch(base + path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    );
+  }
+  async function wait(task: ProcessorData, token: number) {
+    if (!task.taskId) return task;
+    for (;;) {
+      if (!mounted.current || token !== generation.current)
+        throw new Error("Source changed.");
+      const d = await response(await fetch(base + "/api/jobs/" + task.taskId));
+      if (d.status === "failed") throw new Error(d.error);
+      if (d.status === "ready") return d;
+      setStatus(
+        d.status === "queued"
+          ? "Waiting for the processor…"
+          : "Processing video… Long recordings take more time.",
+      );
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+  }
+  function connected() {
+    if (base) return true;
+    setError(
+      "Connect the Clip Studio processor in Admin → Integrations. Upload, YouTube import, transcription and export require that service.",
+    );
+    return false;
+  }
+  function reset() {
+    generation.current++;
+    setJobId("");
+    setSegments([]);
+    setClips([]);
+    setSelected(new Set());
+    setActiveId("");
     setError("");
     setStatus("");
     setProgress(0);
-    setTranscript(null);
-    setClips([]);
-    setSelected(new Set());
-    setActiveClip("");
-    setJobId("");
+    setCurrent(0);
+    setSeconds(0);
   }
-
-  function choose(f:File|null){
-    if(!f)return;
-    if(sourceUrl.startsWith("blob:"))URL.revokeObjectURL(sourceUrl);
-    resetWork();
+  function choose(f: File | null) {
+    if (!f || busy) return;
+    reset();
+    if (local.current) URL.revokeObjectURL(local.current);
+    local.current = URL.createObjectURL(f);
     setFile(f);
-    setRemoteUrl("");
-    setLinkValue("");
-    setSourceUrl(URL.createObjectURL(f));
+    setLink("");
+    setSource(local.current);
   }
-
-  function attachVideoLink(){
-    const value=linkValue.trim();
-    if(!value)return;
-    try{
-      const parsed=new URL(value);
-      if(!["http:","https:"].includes(parsed.protocol))throw new Error();
-    }catch{
-      setError("Paste a valid http:// or https:// video link.");
-      return;
+  async function importVideo() {
+    if (!connected() || (!file && !link.trim())) return;
+    setBusy(true);
+    setError("");
+    setStatus(file ? "Uploading video…" : "Importing video link…");
+    const token = generation.current;
+    try {
+      let task;
+      if (file) {
+        task = await new Promise<ProcessorData>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", base + "/api/import");
+          xhr.setRequestHeader(
+            "Content-Type",
+            file.type || "application/octet-stream",
+          );
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable)
+              setProgress(Math.round((e.loaded / e.total) * 100));
+          };
+          xhr.upload.onload = () =>
+            setStatus("Preparing a seekable video preview…");
+          xhr.onerror = () =>
+            reject(new Error("Upload failed. Check the processor connection."));
+          xhr.onload = () => {
+            response(
+              new Response(xhr.responseText, { status: xhr.status }),
+            ).then(resolve, reject);
+          };
+          xhr.send(file);
+        });
+      } else {
+        const u = new URL(link);
+        if (u.protocol !== "https:")
+          throw new Error("Use an HTTPS YouTube or direct video link.");
+        task = await request("/api/import", { sourceUrl: link.trim() });
+      }
+      const d = await wait(task, token);
+      if (token !== generation.current) return;
+      setJobId(d.jobId);
+      setSource(absolute(d.sourceUrl));
+      setSeconds(d.duration);
+      setDimensions({ width: d.width, height: d.height });
+      setManualEnd(Math.min(60, d.duration));
+      setStatus(
+        "Full video ready. Create a transcript or select a time range.",
+      );
+    } catch (e: unknown) {
+      setError(message(e));
+    } finally {
+      if (mounted.current) setBusy(false);
     }
-    if(sourceUrl.startsWith("blob:"))URL.revokeObjectURL(sourceUrl);
-    resetWork();
-    setFile(null);
-    setRemoteUrl(value);
-    setSourceUrl(value);
-    setStatus("Video link attached. Preview it below, then create the transcript.");
   }
-
-  function uploadFile(inputFile:File){
+  async function transcribe() {
+    if (!jobId || !connected()) return;
+    setBusy(true);
     setError("");
-    setStatus("Uploading video…");
-    setProgress(1);
-
-    const xhr=new XMLHttpRequest();
-    const processUrl=`${processorBase}/api/process?name=${encodeURIComponent(inputFile.name)}`;
-    xhr.open("POST",processUrl);
-    xhr.setRequestHeader("Content-Type",inputFile.type||"application/octet-stream");
-
-    xhr.upload.onprogress=e=>{
-      if(e.lengthComputable)setProgress(Math.max(1,Math.round((e.loaded/e.total)*35)));
-    };
-    xhr.upload.onload=()=>{
-      setProgress(40);
-      setStatus("Extracting audio and transcribing… This can take time for long videos.");
-    };
-    xhr.onerror=()=>{
-      setError("Upload failed. Check the deployment function logs and network connection.");
-      setStatus("");
-    };
-    xhr.onload=()=>{
-      try{
-        const raw=xhr.responseText||"";
-        const type=xhr.getResponseHeader("content-type")||"";
-        if(!type.includes("application/json")){
-          throw new Error(`Server returned HTTP ${xhr.status}. ${cleanServerText(raw).slice(0,300)||"Check the server logs."}`);
-        }
-        const d=JSON.parse(raw||"{}");
-        if(xhr.status<200||xhr.status>=300)throw new Error(d.error||`Processing failed (HTTP ${xhr.status})`);
-        if(!d.jobId||!d.transcript?.segments)throw new Error("Server returned an incomplete transcript response.");
-        setJobId(d.jobId);
-        setTranscript(d.transcript);
-        setProgress(100);
-        setStatus("Transcript ready");
-      }catch(e:any){
-        setError(e?.message||"Processing failed");
-        setStatus("");
-      }
-    };
-    xhr.send(inputFile);
+    setStatus("Creating timestamped transcript…");
+    try {
+      const d = await wait(
+        await request("/api/process", { jobId }),
+        generation.current,
+      );
+      setSegments(d.transcript.segments);
+      setLanguage(d.transcript.language);
+      setStatus("Transcript ready. Select sections to make your clips.");
+    } catch (e: unknown) {
+      setError(message(e));
+    } finally {
+      setBusy(false);
+    }
   }
-
-  async function processVideo(){
-    if(!file&&!remoteUrl)return;
-    if(!processorBase){setError("Transcription is not connected yet. Connect a processing server in Admin → Integrations to enable transcription and rendering for uploaded files or video links.");return;}
-    if(file){uploadFile(file);return;}
-
-    setError("");
-    setLinkLoading(true);
-    setStatus("Loading video from link…");
-    setProgress(5);
-    try{
-      const response=await fetch(remoteUrl,{mode:"cors"});
-      if(!response.ok)throw new Error(`Video link returned HTTP ${response.status}`);
-      const blob=await response.blob();
-      if(!blob.size)throw new Error("The video link returned an empty file.");
-      const pathname=new URL(remoteUrl).pathname;
-      const guessedName=decodeURIComponent(pathname.split("/").filter(Boolean).pop()||"linked-video.mp4");
-      const linkedFile=new File([blob],guessedName.includes(".")?guessedName:"linked-video.mp4",{type:blob.type||"video/mp4"});
-      setFile(linkedFile);
-      setStatus("Video link loaded. Uploading to the processor…");
-      uploadFile(linkedFile);
-    }catch(browserError:any){
-      setStatus("The browser could not download this link directly. Asking the processor to fetch it…");
-      setProgress(12);
-      try{
-        const r=await fetch(`${processorBase}/api/process`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sourceUrl:remoteUrl})});
-        const raw=await r.text();
-        const type=r.headers.get("content-type")||"";
-        if(!type.includes("application/json"))throw new Error(`Server returned HTTP ${r.status}. ${cleanServerText(raw).slice(0,300)||browserError?.message||"Check the server logs."}`);
-        const d=JSON.parse(raw||"{}");
-        if(!r.ok)throw new Error(d.error||`Processing failed (HTTP ${r.status})`);
-        if(!d.jobId||!d.transcript?.segments)throw new Error("Server returned an incomplete transcript response.");
-        setJobId(d.jobId);
-        setTranscript(d.transcript);
-        setProgress(100);
-        setStatus("Transcript ready");
-      }catch(e:any){
-        setError(e?.message||browserError?.message||"Processing the video link failed. Use a direct public video URL or upload the video file.");
-        setStatus("");
-      }
-    }finally{setLinkLoading(false)}
-  }
-
-  function toggle(id:number){
-    setSelected(prev=>{
-      const n=new Set(prev);
-      n.has(id)?n.delete(id):n.add(id);
-      return n;
-    });
-  }
-
-  function addClip(){
-    if(!transcript||!selected.size)return;
-    const segs=transcript.segments.filter(s=>selected.has(s.id)).sort((a,b)=>a.start-b.start);
-    if(!segs.length)return;
-    const clip:Clip={
-      id:crypto.randomUUID(),
-      title:`Clip ${clips.length+1}`,
-      segmentIds:segs.map(s=>s.id),
-      start:segs[0].start,
-      end:segs[segs.length-1].end
-    };
-    setClips(prev=>[...prev,clip]);
+  function create(items: Range[][]) {
+    const next = items
+      .filter((r) => r.length)
+      .map((ranges, i) => ({
+        id: crypto.randomUUID(),
+        title: `Clip ${clips.length + i + 1}`,
+        ranges,
+        settings: { ...defaults },
+      }));
+    setClips((all) => [...all, ...next]);
     setSelected(new Set());
+    if (next.length) setActiveId(next[0].id);
   }
-
-  function removeClip(id:string){
-    setClips(prev=>prev.filter(c=>c.id!==id));
-    if(activeClip===id)setActiveClip("");
-  }
-
-  function updateActive(patch:Partial<Clip>){
-    setClips(prev=>prev.map(c=>c.id===activeClip?{...c,...patch}:c));
-  }
-
-  async function render(){
-    if(!active||!jobId)return;
-    if(active.end<=active.start){
-      setError("Clip end time must be greater than start time.");
+  function manual() {
+    if (!(
+      manualStart >= 0 &&
+      manualEnd > manualStart &&
+      manualEnd <= seconds
+    )) {
+      setError("Choose start and end times within the video.");
       return;
     }
-    setRendering(true);
-    setError("");
-    setStatus("Rendering final clip…");
-    try{
-      const r=await fetch(`${processorBase}/api/render`,{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          jobId,start:active.start,end:active.end,aspect,captions,
-          captionStyle:{fontSize,textColor,background,backgroundColor,position},
-          overlayText,overlayColor,overlaySize
-        })
-      });
-      const type=r.headers.get("content-type")||"";
-      if(!type.includes("application/json")){
-        const raw=await r.text();
-        throw new Error(`Render server returned HTTP ${r.status}. ${cleanServerText(raw).slice(0,300)||"Check the server logs."}`);
+    create([[{ start: manualStart, end: manualEnd }]]);
+  }
+  function batches() {
+    if (batchLength < 5 || batchLength > 600) return;
+    const result: Range[][] = [];
+    let bucket: Range[] = [],
+      used = 0;
+    for (const r of selectedRanges) {
+      let at = r.start;
+      while (at < r.end - 0.01) {
+        const end = Math.min(r.end, at + batchLength - used);
+        bucket.push({ start: at, end });
+        used += end - at;
+        at = end;
+        if (used >= batchLength - 0.01) {
+          result.push(bucket);
+          bucket = [];
+          used = 0;
+        }
       }
-      const d:any=await r.json();
-      if(!r.ok)throw new Error(d.error||"Render failed");
-      if(!d.url)throw new Error("Render completed without a download URL.");
-      const finalUrl=d.url?.startsWith("http")?d.url:`${processorBase}${d.url}`;
-      updateActive({renderedUrl:finalUrl});
-      setStatus("Clip ready");
-    }catch(e:any){
-      setError(e?.message||"Render failed");
-      setStatus("");
-    }finally{
-      setRendering(false);
+    }
+    if (bucket.length) result.push(bucket);
+    create(result);
+  }
+  function seek(s: number) {
+    if (video.current) {
+      video.current.currentTime = s;
+      setCurrent(s);
     }
   }
-
-  return <div className="clip-workspace workspace"><div className="container"><div className="workspace-grid">
-    <aside><div className="panel sidebar">
-      {["Upload & transcribe","Select & group clips","Edit, caption & export"].map((x,i)=><div className={`step ${step===i+1?"active":""}`} key={x}><span className="step-num">{i+1}</span><div><strong>{x}</strong><br/><small>{i===0?"Long source video":i===1?"Mark Clip 1, Clip 2…":"Mobile crop + captions"}</small></div></div>)}
-      <AdSlot name="sidebar"/>
-    </div></aside>
-
-    <section className="panel studio">
-      {!transcript&&<div>
-        <div className="toolbar"><div><h2 style={{margin:0}}>Add your long video</h2><p style={{color:"#667085",marginBottom:0}}>Upload a video file or paste a direct public video link, then create clips from its transcript.</p></div></div>
-        <div className={`upload-zone ${drag?"drag":""}`} style={{marginTop:18}} onClick={()=>input.current?.click()} onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);choose(e.dataTransfer.files?.[0]||null)}}>
-          <div style={{fontSize:44}}>🎬</div><h2>{file?file.name:"Drop your video here"}</h2><p style={{color:"#667085"}}>{file?`${(file.size/1024/1024).toFixed(1)} MB`:"MP4, MOV, MKV, WEBM and other FFmpeg-readable formats"}</p><button className="btn btn-light" type="button">Choose video</button><input ref={input} type="file" accept="video/*,.mkv,.avi,.m4v" hidden onChange={e=>choose(e.target.files?.[0]||null)}/>
-        </div>
-        <div className="source-divider"><span>OR</span></div>
-        <div className="video-link-box"><div><strong>Paste a video link</strong><p>Use a direct public video URL that your connected processor can download.</p></div><div className="video-link-row"><input type="url" value={linkValue} onChange={e=>setLinkValue(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();attachVideoLink()}}} placeholder="https://example.com/video.mp4" aria-label="Video link"/><button className="btn btn-light" type="button" onClick={attachVideoLink}>Attach link</button></div></div>
-        {sourceUrl&&<div className="video-frame" style={{marginTop:16,minHeight:260}}><video src={sourceUrl} controls/></div>}
-        {(file||remoteUrl)&&<div className="source-ready-row" style={{marginTop:16}}><span>{remoteUrl?"Video link ready":"Uploaded file ready"}</span><button className="btn btn-primary" disabled={linkLoading} onClick={processVideo}>{linkLoading?"Loading link…":remoteUrl?"Create transcript from link":"Upload & create transcript"}</button></div>}
-        {status&&<div style={{marginTop:16}}><div className="progress"><span style={{width:`${progress}%`}}/></div><p style={{color:"#667085"}}>{status}</p></div>}
-        {error&&<div className="notice" style={{color:"#b42318",marginTop:12}}>{error}</div>}
-      </div>}
-
-      {transcript&&!active&&<div>
-        <div className="toolbar"><div><h2 style={{margin:0}}>Select conversations</h2><p style={{color:"#667085",margin:"5px 0 0"}}>Language: <strong>{transcript.language?.toUpperCase()}</strong> • Select related paragraphs, then save them as one clip.</p></div><button className="btn btn-primary" disabled={!selected.size} onClick={addClip}>Save selection as Clip {clips.length+1}</button></div>
-        <div className="notice" style={{marginTop:14}}>Speech is split into readable timestamped paragraph blocks. Select the paragraphs that should belong to one clip.</div>
-        <div className="transcript-list">{transcript.segments.map(seg=><label key={seg.id} className={`segment ${selected.has(seg.id)?"selected":""}`}><input type="checkbox" checked={selected.has(seg.id)} onChange={()=>toggle(seg.id)}/><span className="time">{format(seg.start)}–{format(seg.end)}</span><span style={{lineHeight:1.55}}>{seg.text}</span></label>)}</div>
-        {clips.length>0&&<div style={{marginTop:22}}><div className="toolbar"><h3 style={{margin:0}}>Saved clips</h3><small style={{color:"#667085"}}>{clips.length} clip(s)</small></div><div className="cards" style={{gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",marginTop:12}}>{clips.map(c=><article className="card" key={c.id}><h3>{c.title}</h3><p>{format(c.start)} – {format(c.end)} • {(c.end-c.start).toFixed(1)} sec</p><div style={{display:"flex",gap:8,marginTop:14}}><button className="btn btn-primary" onClick={()=>setActiveClip(c.id)}>Edit clip</button><button className="btn btn-danger" onClick={()=>removeClip(c.id)}>Delete</button></div></article>)}</div></div>}
-      </div>}
-
-      {active&&<div>
-        <div className="toolbar"><div><h2 style={{margin:0}}>{active.title}</h2><p style={{color:"#667085",margin:"5px 0 0"}}>{format(active.start)} – {format(active.end)} • {(active.end-active.start).toFixed(1)} sec</p></div><button className="btn btn-light" onClick={()=>setActiveClip("")}>← Back to transcript</button></div>
-        <div className="editor-grid" style={{marginTop:16}}>
-          <div><div className="video-frame"><video src={active.renderedUrl||sourceUrl} controls/></div>{active.renderedUrl&&<a className="btn btn-primary" style={{width:"100%",marginTop:12}} href={active.renderedUrl}>Download final MP4</a>}</div>
-          <div className="panel controls">
-            <label>Clip title</label><input value={active.title} onChange={e=>updateActive({title:e.target.value})}/>
-            <div className="row2"><div><label>Start seconds</label><input type="number" min="0" step=".01" value={active.start} onChange={e=>updateActive({start:Number(e.target.value)})}/></div><div><label>End seconds</label><input type="number" min="0" step=".01" value={active.end} onChange={e=>updateActive({end:Number(e.target.value)})}/></div></div>
-            <label>Video format</label><select value={aspect} onChange={e=>setAspect(e.target.value)}><option value="source">Keep original</option><option value="16:9">16:9 Landscape</option><option value="9:16">9:16 Mobile / Shorts</option><option value="1:1">1:1 Square</option><option value="4:5">4:5 Portrait</option></select>
-            <label style={{display:"flex",gap:8,alignItems:"center"}}><input style={{width:"auto"}} type="checkbox" checked={captions} onChange={e=>setCaptions(e.target.checked)}/> Show timed captions</label>
-            {captions&&<><div className="row2"><div><label>Caption size</label><input type="number" min="20" max="96" value={fontSize} onChange={e=>setFontSize(Number(e.target.value))}/></div><div><label>Caption position</label><select value={position} onChange={e=>setPosition(e.target.value)}><option value="bottom">Bottom</option><option value="center">Center</option><option value="top">Top</option></select></div></div>
-            <div className="row2"><div><label>Text color</label><input type="color" value={textColor} onChange={e=>setTextColor(e.target.value)}/></div><div><label>Background color</label><input type="color" value={backgroundColor} onChange={e=>setBackgroundColor(e.target.value)}/></div></div>
-            <label style={{display:"flex",gap:8,alignItems:"center"}}><input style={{width:"auto"}} type="checkbox" checked={background} onChange={e=>setBackground(e.target.checked)}/> Caption background box</label></>}
-            <label>Extra overlay text</label><textarea rows={3} value={overlayText} onChange={e=>setOverlayText(e.target.value)} placeholder="Add a title, hook or note on the clip"/>
-            <div className="row2"><div><label>Overlay color</label><input type="color" value={overlayColor} onChange={e=>setOverlayColor(e.target.value)}/></div><div><label>Overlay size</label><input type="number" min="20" max="100" value={overlaySize} onChange={e=>setOverlaySize(Number(e.target.value))}/></div></div>
-            <button className="btn btn-primary" style={{width:"100%",marginTop:16}} disabled={rendering} onClick={render}>{rendering?"Rendering…":"Render final clip"}</button>
-            {status&&<div className="notice ok" style={{marginTop:12}}>{status}</div>}
-            {error&&<div className="notice" style={{marginTop:12,color:"#b42318"}}>{error}</div>}
+  async function exportClip(clip: Clip) {
+    const s = clip.settings;
+    const d = await wait(
+      await request("/api/render", {
+        jobId,
+        ranges: clip.ranges,
+        ...s,
+        captionStyle: {
+          fontSize: s.fontSize,
+          textColor: s.textColor,
+          background: s.background,
+          backgroundColor: s.backgroundColor,
+          position: s.position,
+        },
+      }),
+      generation.current,
+    );
+    setClips((all) =>
+      all.map((c) => (c.id === clip.id ? { ...c, url: absolute(d.url) } : c)),
+    );
+  }
+  async function exportClips(all = false) {
+    if (!connected() || !jobId || (!active && !all)) return;
+    setBusy(true);
+    setError("");
+    try {
+      const targets = all ? clips : active ? [active] : [];
+      for (let i = 0; i < targets.length; i++) {
+        setStatus(`Exporting ${i + 1} of ${targets.length} clips…`);
+        await exportClip(targets[i]);
+      }
+      setStatus("MP4 export ready. Download your clips below.");
+    } catch (e: unknown) {
+      setError(message(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function deleteSource() {
+    if (!jobId || busy) return;
+    setBusy(true);
+    try {
+      await response(
+        await fetch(base + "/api/source/" + jobId, { method: "DELETE" }),
+      );
+      reset();
+      setSource("");
+      setFile(null);
+      setLink("");
+      setStatus("Source and exported clips deleted from the processor.");
+    } catch (e: unknown) {
+      setError(message(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  const ratio =
+    settings.aspect === "source"
+      ? dimensions.width / dimensions.height
+      : Number(settings.aspect.split(":")[0]) /
+        Number(settings.aspect.split(":")[1]);
+  const captions = segments.find(
+    (seg) => current >= seg.start && current < seg.end,
+  )?.text;
+  return (
+    <div className="clip-workspace workspace">
+      <div className="container">
+        <section className="panel studio">
+          <div className="toolbar">
+            <div>
+              <h2>Clip Studio</h2>
+              <p>Long video → transcript → selected clips → MP4</p>
+            </div>
+            {jobId && (
+              <button
+                className="btn btn-light"
+                disabled={busy}
+                onClick={deleteSource}
+              >
+                Delete source & exports
+              </button>
+            )}
           </div>
-        </div>
-      </div>}
-    </section>
-  </div></div></div>
+          {!jobId && (
+            <div className="video-link-box">
+              <label>
+                Upload a video (up to 3 hours with the connected processor)
+                <input
+                  type="file"
+                  disabled={busy}
+                  accept="video/*,.mkv,.avi"
+                  onChange={(e) => choose(e.target.files?.[0] || null)}
+                />
+              </label>
+              <div className="source-divider">
+                <span>OR</span>
+              </div>
+              <label>
+                YouTube or direct video link
+                <input
+                  type="url"
+                  disabled={busy}
+                  placeholder="https://www.youtube.com/watch?v=…"
+                  value={link}
+                  onChange={(e) => {
+                    reset();
+                    setFile(null);
+                    setSource("");
+                    setLink(e.target.value);
+                  }}
+                />
+              </label>
+              <button
+                className="btn btn-primary"
+                disabled={busy || (!file && !link)}
+                onClick={importVideo}
+              >
+                {busy ? "Preparing video…" : "Load full video"}
+              </button>
+              {file && progress > 0 && (
+                <progress
+                  max="100"
+                  value={progress}
+                  aria-label="Upload progress"
+                />
+              )}
+            </div>
+          )}
+          {source && (
+            <div className="editor-grid" style={{ marginTop: 20 }}>
+              <div>
+                <div
+                  style={{
+                    position: "relative",
+                    background: "#111",
+                    overflow: "hidden",
+                    aspectRatio: active
+                      ? ratio
+                      : dimensions.width / dimensions.height,
+                    maxHeight: 600,
+                    containerType: "inline-size",
+                  }}
+                >
+                  <video
+                    ref={video}
+                    key={source + activeId}
+                    src={active?.url || source}
+                    controls
+                    playsInline
+                    muted={settings.mute}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: active ? "cover" : "contain",
+                      objectPosition: `${settings.cropX * 100}% ${settings.cropY * 100}%`,
+                    }}
+                    onLoadedMetadata={(e) => {
+                      const v = e.currentTarget;
+                      if (!jobId) {
+                        setSeconds(v.duration);
+                        setDimensions({
+                          width: v.videoWidth,
+                          height: v.videoHeight,
+                        });
+                      }
+                      if (active && !active.url) {
+                        part.current = 0;
+                        v.currentTime = active.ranges[0].start;
+                      }
+                    }}
+                    onTimeUpdate={(e) => {
+                      const v = e.currentTarget;
+                      setCurrent(v.currentTime);
+                      if (!active || active.url) return;
+                      const r = active.ranges[part.current] || active.ranges[0];
+                      if (v.currentTime < r.start - 0.2)
+                        v.currentTime = r.start;
+                      if (v.currentTime >= r.end) {
+                        if (part.current < active.ranges.length - 1) {
+                          part.current++;
+                          v.currentTime = active.ranges[part.current].start;
+                        } else {
+                          v.pause();
+                          part.current = 0;
+                          v.currentTime = active.ranges[0].start;
+                        }
+                      }
+                    }}
+                  />
+                  {active && !active.url && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        pointerEvents: "none",
+                      }}
+                    >
+                      {settings.shape !== "none" && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: "10%",
+                            top: "8%",
+                            width: "80%",
+                            height: settings.shape === "bar" ? "12%" : "25%",
+                            background:
+                              settings.shape === "outline"
+                                ? "transparent"
+                                : settings.shapeColor + "99",
+                            border:
+                              settings.shape === "outline"
+                                ? `4px solid ${settings.shapeColor}`
+                                : undefined,
+                          }}
+                        />
+                      )}
+                      {settings.overlayText && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: "10%",
+                            width: "100%",
+                            textAlign: "center",
+                            whiteSpace: "pre-wrap",
+                            color: settings.overlayColor,
+                            fontSize: `${settings.overlaySize / 10}cqw`,
+                            lineHeight: 1.2,
+                          }}
+                        >
+                          {settings.overlayText}
+                        </div>
+                      )}
+                      {settings.captions && captions && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: "5%",
+                            width: "90%",
+                            textAlign: "center",
+                            bottom:
+                              settings.position === "bottom"
+                                ? "12%"
+                                : undefined,
+                            top:
+                              settings.position === "top"
+                                ? "5%"
+                                : settings.position === "center"
+                                  ? "45%"
+                                  : undefined,
+                            color: settings.textColor,
+                            background: settings.background
+                              ? settings.backgroundColor + "bb"
+                              : undefined,
+                            fontSize: Math.max(14, settings.fontSize / 3),
+                            lineHeight: 1.25,
+                          }}
+                        >
+                          {captions}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <p>
+                  {time(current)} / {time(seconds)}
+                  {active &&
+                    ` · Selected duration: ${time(duration(active.ranges))}`}
+                </p>
+                {jobId && (
+                  <>
+                    <label>
+                      Source timeline
+                      <input
+                        aria-label="Seek source video"
+                        type="range"
+                        min="0"
+                        max={seconds || 1}
+                        step=".1"
+                        value={Math.min(current, seconds)}
+                        disabled={!!active?.url}
+                        onChange={(e) => seek(Number(e.target.value))}
+                      />
+                    </label>
+                    <div className="row2">
+                      <label>
+                        Start (seconds)
+                        <input
+                          type="number"
+                          min="0"
+                          max={seconds}
+                          step=".1"
+                          value={manualStart}
+                          onChange={(e) =>
+                            setManualStart(Number(e.target.value))
+                          }
+                        />
+                      </label>
+                      <button
+                        className="btn btn-light"
+                        onClick={() => setManualStart(current)}
+                      >
+                        Use current time as start
+                      </button>
+                      <label>
+                        End (seconds)
+                        <input
+                          type="number"
+                          min="0"
+                          max={seconds}
+                          step=".1"
+                          value={manualEnd}
+                          onChange={(e) => setManualEnd(Number(e.target.value))}
+                        />
+                      </label>
+                      <button
+                        className="btn btn-light"
+                        onClick={() => setManualEnd(current)}
+                      >
+                        Use current time as end
+                      </button>
+                    </div>
+                    <button
+                      className="btn btn-light"
+                      disabled={busy}
+                      onClick={manual}
+                    >
+                      Create clip from time range
+                    </button>
+                    <button
+                      className="btn btn-primary"
+                      disabled={busy}
+                      onClick={transcribe}
+                    >
+                      {segments.length
+                        ? "Recreate transcript"
+                        : "Create transcript"}
+                    </button>
+                  </>
+                )}
+              </div>
+              {active && (
+                <div className="panel controls">
+                  <label>
+                    Clip title
+                    <input
+                      value={active.title}
+                      disabled={busy}
+                      onChange={(e) => update({ title: e.target.value })}
+                    />
+                  </label>
+                  <label>
+                    Platform / video size
+                    <select
+                      value={settings.aspect}
+                      disabled={busy}
+                      onChange={(e) => style({ aspect: e.target.value })}
+                    >
+                      <option value="source">Original size</option>
+                      <option value="9:16">
+                        YouTube Shorts / Facebook Reels · 1080 × 1920
+                      </option>
+                      <option value="16:9">
+                        YouTube / Facebook landscape · 1920 × 1080
+                      </option>
+                      <option value="1:1">Facebook square · 1080 × 1080</option>
+                      <option value="4:5">
+                        Facebook portrait · 1080 × 1350
+                      </option>
+                    </select>
+                  </label>
+                  {(["cropX", "cropY"] as const).map((key) => (
+                    <label key={key}>
+                      {key === "cropX"
+                        ? "Horizontal crop position"
+                        : "Vertical crop position"}
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step=".01"
+                        disabled={busy}
+                        value={settings[key]}
+                        onChange={(e) =>
+                          style({ [key]: Number(e.target.value) })
+                        }
+                      />
+                    </label>
+                  ))}
+                  <label>
+                    <input
+                      type="checkbox"
+                      disabled={busy}
+                      checked={settings.mute}
+                      onChange={(e) => style({ mute: e.target.checked })}
+                    />{" "}
+                    Mute audio
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      disabled={busy || !segments.length}
+                      checked={settings.captions && !!segments.length}
+                      onChange={(e) => style({ captions: e.target.checked })}
+                    />{" "}
+                    Timed captions
+                  </label>
+                  {settings.captions && segments.length > 0 && (
+                    <>
+                      <label>
+                        Caption size
+                        <input
+                          type="number"
+                          min="20"
+                          max="96"
+                          value={settings.fontSize}
+                          disabled={busy}
+                          onChange={(e) =>
+                            style({ fontSize: Number(e.target.value) })
+                          }
+                        />
+                      </label>
+                      <label>
+                        Caption position
+                        <select
+                          value={settings.position}
+                          disabled={busy}
+                          onChange={(e) => style({ position: e.target.value })}
+                        >
+                          {["bottom", "center", "top"].map((x) => (
+                            <option key={x}>{x}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Caption color
+                        <input
+                          type="color"
+                          disabled={busy}
+                          value={settings.textColor}
+                          onChange={(e) => style({ textColor: e.target.value })}
+                        />
+                      </label>
+                      <label>
+                        <input
+                          type="checkbox"
+                          disabled={busy}
+                          checked={settings.background}
+                          onChange={(e) =>
+                            style({ background: e.target.checked })
+                          }
+                        />{" "}
+                        Caption background
+                      </label>
+                      <label>
+                        Background color
+                        <input
+                          type="color"
+                          disabled={busy}
+                          value={settings.backgroundColor}
+                          onChange={(e) =>
+                            style({ backgroundColor: e.target.value })
+                          }
+                        />
+                      </label>
+                    </>
+                  )}
+                  <label>
+                    Add text
+                    <textarea
+                      value={settings.overlayText}
+                      disabled={busy}
+                      rows={3}
+                      onChange={(e) => style({ overlayText: e.target.value })}
+                    />
+                  </label>
+                  <div className="row2">
+                    <label>
+                      Text color
+                      <input
+                        type="color"
+                        disabled={busy}
+                        value={settings.overlayColor}
+                        onChange={(e) =>
+                          style({ overlayColor: e.target.value })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Text size
+                      <input
+                        type="number"
+                        min="20"
+                        max="100"
+                        disabled={busy}
+                        value={settings.overlaySize}
+                        onChange={(e) =>
+                          style({ overlaySize: Number(e.target.value) })
+                        }
+                      />
+                    </label>
+                  </div>
+                  <label>
+                    Add shape
+                    <select
+                      disabled={busy}
+                      value={settings.shape}
+                      onChange={(e) => style({ shape: e.target.value })}
+                    >
+                      <option value="none">No shape</option>
+                      <option value="box">Rectangle</option>
+                      <option value="bar">Title bar</option>
+                      <option value="outline">Rectangle outline</option>
+                    </select>
+                  </label>
+                  <label>
+                    Shape color
+                    <input
+                      type="color"
+                      disabled={busy}
+                      value={settings.shapeColor}
+                      onChange={(e) => style({ shapeColor: e.target.value })}
+                    />
+                  </label>
+                  <p>
+                    {active.ranges.length} selected section(s); gaps are
+                    removed.
+                  </p>
+                  {active.ranges.map((r, i) => (
+                    <div className="row2" key={i}>
+                      <label>
+                        Section {i + 1} start
+                        <input
+                          disabled={busy}
+                          type="number"
+                          min="0"
+                          max={seconds}
+                          step=".1"
+                          value={r.start}
+                          onChange={(e) =>
+                            update({
+                              ranges: active.ranges.map((x, j) =>
+                                j === i
+                                  ? { ...x, start: Number(e.target.value) }
+                                  : x,
+                              ),
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        End
+                        <input
+                          disabled={busy}
+                          type="number"
+                          min="0"
+                          max={seconds}
+                          step=".1"
+                          value={r.end}
+                          onChange={(e) =>
+                            update({
+                              ranges: active.ranges.map((x, j) =>
+                                j === i
+                                  ? { ...x, end: Number(e.target.value) }
+                                  : x,
+                              ),
+                            })
+                          }
+                        />
+                      </label>
+                    </div>
+                  ))}
+                  <button
+                    className="btn btn-primary"
+                    disabled={busy}
+                    onClick={() => exportClips()}
+                  >
+                    Export this clip
+                  </button>
+                  {active.url && (
+                    <a className="btn btn-primary" href={active.url} download>
+                      Download MP4
+                    </a>
+                  )}
+                  <button
+                    className="btn btn-light"
+                    disabled={busy}
+                    onClick={() => setActiveId("")}
+                  >
+                    Full video preview
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+          {status && <p role="status">{status}</p>}
+          {error && (
+            <div role="alert" className="notice" style={{ color: "#b42318" }}>
+              {error}
+            </div>
+          )}
+          {segments.length > 0 && (
+            <section style={{ marginTop: 24 }}>
+              <div className="toolbar">
+                <div>
+                  <h3>Transcript · {language.toUpperCase()}</h3>
+                  <p>
+                    {selected.size} paragraphs selected ·{" "}
+                    {time(duration(selectedRanges))}
+                  </p>
+                </div>
+                <div>
+                  <button
+                    className="btn btn-light"
+                    disabled={busy}
+                    onClick={() =>
+                      setSelected(new Set(segments.map((s) => s.id)))
+                    }
+                  >
+                    Select all
+                  </button>
+                  <button
+                    className="btn btn-light"
+                    disabled={busy}
+                    onClick={() => setSelected(new Set())}
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  flexWrap: "wrap",
+                  marginBottom: 12,
+                }}
+              >
+                <button
+                  className="btn btn-primary"
+                  disabled={busy || !selected.size}
+                  onClick={() => create([selectedRanges])}
+                >
+                  Combine selected sections
+                </button>
+                <button
+                  className="btn btn-light"
+                  disabled={busy || !selected.size}
+                  onClick={() =>
+                    create(
+                      segments
+                        .filter((s) => selected.has(s.id))
+                        .map((s) => [{ start: s.start, end: s.end }]),
+                    )
+                  }
+                >
+                  One clip per paragraph
+                </button>
+                <label>
+                  Batch clip duration (seconds)
+                  <input
+                    type="number"
+                    min="5"
+                    max="600"
+                    value={batchLength}
+                    onChange={(e) => setBatchLength(Number(e.target.value))}
+                  />
+                </label>
+                <button
+                  className="btn btn-light"
+                  disabled={
+                    busy ||
+                    !selected.size ||
+                    batchLength < 5 ||
+                    batchLength > 600
+                  }
+                  onClick={batches}
+                >
+                  Create batches
+                </button>
+              </div>
+              <div
+                className="transcript-list"
+                style={{ maxHeight: 480, overflowY: "auto" }}
+              >
+                {segments.map((seg) => (
+                  <div
+                    className={`segment ${selected.has(seg.id) ? "selected" : ""}`}
+                    key={seg.id}
+                  >
+                    <input
+                      type="checkbox"
+                      aria-label={`Select paragraph at ${time(seg.start)}`}
+                      disabled={busy}
+                      checked={selected.has(seg.id)}
+                      onChange={() =>
+                        setSelected((old) => {
+                          const n = new Set(old);
+                          if (n.has(seg.id)) n.delete(seg.id);
+                          else n.add(seg.id);
+                          return n;
+                        })
+                      }
+                    />
+                    <button
+                      className="btn btn-light time"
+                      disabled={!!active?.url}
+                      onClick={() => {
+                        setActiveId("");
+                        setTimeout(() => seek(seg.start), 0);
+                      }}
+                    >
+                      {time(seg.start)}–{time(seg.end)}
+                    </button>
+                    <span dir="auto">{seg.text}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+          {clips.length > 0 && (
+            <section style={{ marginTop: 24 }}>
+              <div className="toolbar">
+                <h3>{clips.length} clips</h3>
+                <button
+                  className="btn btn-primary"
+                  disabled={busy}
+                  onClick={() => exportClips(true)}
+                >
+                  Export all clips
+                </button>
+              </div>
+              <div
+                className="cards"
+                style={{
+                  gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
+                }}
+              >
+                {clips.map((c) => (
+                  <article className="card" key={c.id}>
+                    <h3>{c.title}</h3>
+                    <p>
+                      {time(duration(c.ranges))} · {c.ranges.length} sections ·{" "}
+                      {c.settings.aspect}
+                    </p>
+                    <button
+                      className="btn btn-light"
+                      disabled={busy}
+                      onClick={() => {
+                        part.current = 0;
+                        setActiveId(c.id);
+                      }}
+                    >
+                      Preview & edit
+                    </button>
+                    <button
+                      className="btn btn-danger"
+                      disabled={busy}
+                      onClick={() => {
+                        setClips((all) => all.filter((x) => x.id !== c.id));
+                        if (activeId === c.id) setActiveId("");
+                      }}
+                    >
+                      Remove
+                    </button>
+                    {c.url && (
+                      <>
+                        <video
+                          controls
+                          playsInline
+                          src={c.url}
+                          style={{ width: "100%", marginTop: 12 }}
+                        />
+                        <a className="btn btn-primary" href={c.url} download>
+                          Download MP4
+                        </a>
+                      </>
+                    )}
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+        </section>
+      </div>
+    </div>
+  );
 }
