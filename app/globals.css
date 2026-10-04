@@ -853,3 +853,53 @@ html[data-theme="dark"] .workspace-main-art::after{
     transform:translateY(-4px) scale(1.08)
   }
 }
+
+
+/* Mobile usability refinements */
+@media(max-width:640px){
+  .fb-main,.home-main>.tool-section,.home-main>.process-strip,.home-main>.ad-slot{width:calc(100% - 28px);margin-left:auto;margin-right:auto}
+  .header-inner{width:calc(100% - 28px)}
+  .fb-brand-name{font-size:15px}
+  .theme-toggle{width:36px;height:36px}
+  .login-link{height:36px;padding:0 10px}
+  .home-hero-inner{width:calc(100% - 28px);grid-template-columns:1fr;gap:26px;min-height:auto}
+  .home-hero-heading{font-size:38px!important;max-width:100%!important}
+  .home-hero-copy>p{font-size:15px!important}
+  .home-stage{max-width:360px;height:260px;margin:0 auto;justify-self:center}
+  .hero-workspace-card{width:145px;height:98px;padding:12px;gap:9px}
+  .hero-card-art{width:44px;height:44px;border-radius:12px}
+  .hero-card-copy strong{font-size:13px}.hero-card-copy small{font-size:10px}
+  .home-category-row{width:calc(100% - 28px);grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
+  .home-category-row .category-tile{height:auto;min-height:70px;padding:12px}
+  .fb-tools-grid{grid-template-columns:1fr!important;gap:12px}
+  .fb-tool{min-height:0;padding:18px}
+  .fb-tool p{margin-bottom:16px}
+  .page-hero-shell,.category-hero{width:100%}
+  .category-hero{grid-template-columns:1fr!important;padding:26px 18px!important;gap:24px!important}
+  .category-hero-copy h1,.fb-heading h1,.fb-article>h1{font-size:31px!important;line-height:1.12}
+  .workspace-orbit{max-width:360px;margin:0 auto}
+  .converter{width:100%;padding:18px!important}
+  .dropzone,.upload-zone{padding:22px 14px!important}
+  .btn{width:100%;min-height:46px}
+  .filter-tabs{overflow-x:auto;padding-bottom:4px;flex-wrap:nowrap}
+  .filter-tabs button{white-space:nowrap}
+  .breadcrumb{overflow-x:auto;white-space:nowrap;padding-bottom:4px}
+  .settings-panel{padding:18px 14px!important}
+  .settings-panel input,.settings-panel textarea,.settings-panel select{font-size:16px}
+  .admin-top{flex-direction:column;align-items:stretch}
+  .save-actions{width:100%;align-items:stretch}
+  .save-actions .btn{width:100%}
+  .dashboard-stats{grid-template-columns:1fr 1fr}
+  .page-editor-meta{flex-direction:column;align-items:flex-start}
+  .seo-preview{overflow-wrap:anywhere}
+  .clip-workspace .sidebar{overflow-x:auto}
+  .clip-workspace .step{min-width:120px}
+  .clip-feature>div{padding:22px 16px}
+}
+@media(max-width:420px){
+  .home-category-row{grid-template-columns:1fr!important}
+  .dashboard-stats{grid-template-columns:1fr}
+  .home-stage{max-width:320px;height:250px}
+  .hero-workspace-card{width:132px}
+  .cookie-banner .btn{width:100%}
+}
