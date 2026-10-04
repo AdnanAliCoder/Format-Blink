@@ -14,7 +14,6 @@ image = modal.Image.from_dockerfile(
     memory=2048,
     timeout=600,
     min_containers=0,
-    ephemeral_disk=2048,
     env={
         "ALLOWED_ORIGINS": "https://formatblink.vercel.app,https://formatblink.com,https://www.formatblink.com",
     },
