@@ -1056,3 +1056,23 @@ html[data-theme="dark"] .btn.secondary:hover{border-color:#4D86C4!important;colo
   .footer-inner{grid-template-columns:1fr!important}
   .footer-brand{grid-column:1!important}
 }
+
+
+/* Consistent left-aligned titles across tool/category/footer cards */
+.fb-heading,
+.tool-title,
+.category-hero-copy,
+.home-category-row .category-tile,
+.hero-card-copy,
+.footer-column,
+.footer-social{
+  text-align:left!important
+}
+.fb-heading p{margin-left:0!important;margin-right:0!important}
+.tool-title>.tool-icon{margin-left:0!important;margin-right:0!important}
+.home-category-row .category-tile>div,
+.hero-card-copy{align-items:flex-start!important}
+.footer-column h3,
+.footer-column a,
+.footer-social .social-links,
+.footer-social .social-links a{ text-align:left!important }
