@@ -903,3 +903,156 @@ html[data-theme="dark"] .workspace-main-art::after{
   .hero-workspace-card{width:132px}
   .cookie-banner .btn{width:100%}
 }
+
+
+/* ============================================================
+   Popular pinning, footer structure, and dark-mode consistency
+   ============================================================ */
+.pin-groups{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:24px}
+.pin-group{border:1px solid var(--border);border-radius:14px;background:var(--card);overflow:hidden}
+.pin-group-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 17px;border-bottom:1px solid var(--border-soft);background:var(--surface)}
+.pin-group-head h3{font-size:15px}.pin-group-head span,.popular-count{font-size:12px;color:var(--text-muted)}
+.pin-tool-list{display:flex;flex-direction:column}
+.pin-tool-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;border-bottom:1px solid var(--border-soft)}
+.pin-tool-row:last-child{border-bottom:0}
+.pin-tool-row>div{min-width:0;display:flex;flex-direction:column;gap:3px}
+.pin-tool-row strong{font-size:13px;color:var(--text)}
+.pin-tool-row small{font-size:11px;color:var(--text-soft);overflow-wrap:anywhere}
+.pin-tool-row .btn{width:auto;min-width:70px;min-height:36px;padding:7px 11px;font-size:12px}
+.pin-tool-row.is-pinned{background:color-mix(in srgb,var(--blue) 7%,var(--card))}
+.pin-tool-row.is-pinned strong{color:var(--blue)}
+.pin-tool-row .pin-active{border-color:color-mix(in srgb,var(--blue) 45%,var(--border));color:var(--blue)}
+
+/* Footer: keep every information group vertical; social links get their own column. */
+.footer-inner{
+  grid-template-columns:minmax(240px,1.5fr) repeat(4,minmax(125px,1fr))!important;
+  gap:34px!important;
+  align-items:start
+}
+.footer-column,.footer-column:last-child{
+  grid-column:auto!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:flex-start!important;
+  gap:11px!important
+}
+.footer-column h3{width:100%}
+.footer-social .social-links{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:flex-start!important;
+  gap:10px!important;
+  margin:0!important
+}
+.footer-social .social-links a{display:block}
+.footer-social-empty{font-size:12px;color:var(--text-soft);line-height:1.5}
+.footer-brand{min-width:0}
+
+/* Dark mode: all UI surfaces become dark rather than leaving white islands. */
+html[data-theme="dark"] .fb-header,
+html[data-theme="dark"] .fb-footer,
+html[data-theme="dark"] .footer-bottom,
+html[data-theme="dark"] .admin-nav,
+html[data-theme="dark"] .admin-app,
+html[data-theme="dark"] .admin-content,
+html[data-theme="dark"] .settings-panel,
+html[data-theme="dark"] .dashboard-stats>div,
+html[data-theme="dark"] .quick-actions button,
+html[data-theme="dark"] .connection-list,
+html[data-theme="dark"] .pin-group,
+html[data-theme="dark"] .pin-group-head,
+html[data-theme="dark"] .pin-tool-row,
+html[data-theme="dark"] .page-editor-meta,
+html[data-theme="dark"] .seo-preview,
+html[data-theme="dark"] .brand-preview,
+html[data-theme="dark"] .hero-admin-card,
+html[data-theme="dark"] .hero-admin-preview,
+html[data-theme="dark"] .auth-admin-preview,
+html[data-theme="dark"] .event-editor,
+html[data-theme="dark"] table,
+html[data-theme="dark"] th,
+html[data-theme="dark"] td,
+html[data-theme="dark"] .resource-card,
+html[data-theme="dark"] .account-panel,
+html[data-theme="dark"] .status-page,
+html[data-theme="dark"] .auth-card,
+html[data-theme="dark"] .field-wrap,
+html[data-theme="dark"] .fb-nav.open{
+  background:#0D1826!important;
+  border-color:#263A50!important
+}
+html[data-theme="dark"] .admin-app,
+html[data-theme="dark"] .admin-content{background:#07111F!important}
+html[data-theme="dark"] .pin-group-head,
+html[data-theme="dark"] th,
+html[data-theme="dark"] .page-editor-meta{background:#101E2E!important}
+html[data-theme="dark"] .pin-tool-row.is-pinned{background:#10223A!important}
+html[data-theme="dark"] .fb-footer{border-color:#203650!important}
+html[data-theme="dark"] .footer-bottom{border-color:#203650!important}
+html[data-theme="dark"] .fb-footer h3,
+html[data-theme="dark"] .fb-footer a,
+html[data-theme="dark"] .fb-footer strong,
+html[data-theme="dark"] .settings-panel h2,
+html[data-theme="dark"] .settings-panel h3,
+html[data-theme="dark"] .settings-panel label,
+html[data-theme="dark"] .pin-tool-row strong,
+html[data-theme="dark"] td,
+html[data-theme="dark"] th{
+  color:#D8E3F0!important
+}
+html[data-theme="dark"] .fb-footer p,
+html[data-theme="dark"] .fb-footer span,
+html[data-theme="dark"] .settings-panel p,
+html[data-theme="dark"] .settings-panel small,
+html[data-theme="dark"] .pin-group-head span,
+html[data-theme="dark"] .pin-tool-row small,
+html[data-theme="dark"] td small{
+  color:#93A7C0!important
+}
+html[data-theme="dark"] .pin-tool-row.is-pinned strong,
+html[data-theme="dark"] .text-link,
+html[data-theme="dark"] .seo-preview strong{color:#62A9FF!important}
+html[data-theme="dark"] input,
+html[data-theme="dark"] textarea,
+html[data-theme="dark"] select{
+  background:#091522!important;
+  color:#D8E3F0!important;
+  border-color:#2A3E55!important
+}
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder{color:#71869F!important}
+html[data-theme="dark"] .btn.secondary{
+  background:#101E2E!important;
+  color:#D0DCEA!important;
+  border-color:#2B425C!important
+}
+html[data-theme="dark"] .btn.secondary:hover{border-color:#4D86C4!important;color:#fff!important}
+
+/* Responsive footer + pin manager. */
+@media(max-width:1050px){
+  .footer-inner{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:28px 36px!important
+  }
+  .footer-brand{grid-column:1/-1!important}
+  .pin-groups{grid-template-columns:1fr 1fr}
+}
+@media(max-width:640px){
+  .footer-inner{
+    margin-left:14px!important;
+    margin-right:14px!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:26px 20px!important
+  }
+  .footer-brand{grid-column:1/-1!important}
+  .footer-column,.footer-column:last-child{grid-column:auto!important;flex-direction:column!important}
+  .footer-column a{font-size:13px;line-height:1.45}
+  .footer-column h3{font-size:10px}
+  .footer-social .social-links{gap:8px!important}
+  .pin-groups{grid-template-columns:1fr}
+  .pin-tool-row{padding:12px}
+}
+@media(max-width:380px){
+  .footer-inner{grid-template-columns:1fr!important}
+  .footer-brand{grid-column:1!important}
+}
