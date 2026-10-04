@@ -26,7 +26,11 @@ ROOT.mkdir(parents=True, exist_ok=True)
 MAX_BYTES = int(os.environ.get('MAX_UPLOAD_GB', '8')) * 1024**3
 MAX_SECONDS = int(os.environ.get('MAX_VIDEO_HOURS', '3')) * 3600
 TTL = int(os.environ.get('MEDIA_TTL_HOURS', '6')) * 3600
-ORIGINS = os.environ.get('ALLOWED_ORIGINS', 'http://localhost:3000').split(',')
+ORIGINS = [x.strip() for x in os.environ.get(
+    'ALLOWED_ORIGINS',
+    'http://localhost:3000,http://127.0.0.1:3000,https://formatblink.vercel.app,https://formatblink.com,https://www.formatblink.com'
+).split(',') if x.strip()]
+LOCAL_MODE = os.environ.get('FORMAT_BLINK_LOCAL', '0') == '1'
 POOL = ThreadPoolExecutor(max_workers=1)
 JOBS = {}
 BUSY = set()
@@ -269,14 +273,31 @@ async def lifespan(app):
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=ORIGINS, allow_methods=['GET','POST','DELETE'], allow_headers=['Content-Type'])
 
+def origin_allowed(origin):
+    if not origin:
+        return True
+    if origin in ORIGINS:
+        return True
+    if LOCAL_MODE:
+        try:
+            p = urlparse(origin)
+            host = (p.hostname or '').lower()
+            return p.scheme == 'https' and (
+                host in ('formatblink.com', 'www.formatblink.com', 'formatblink.vercel.app')
+                or (host.endswith('.vercel.app') and 'formatblink' in host)
+            )
+        except Exception:
+            return False
+    return False
+
 @app.middleware('http')
 async def origin_guard(request, call_next):
-    if request.method in ('POST','DELETE') and request.headers.get('origin') not in ORIGINS:
+    if request.method in ('POST','DELETE') and not origin_allowed(request.headers.get('origin')):
         return JSONResponse({'detail': 'Origin is not allowed.'}, status_code=403)
     return await call_next(request)
 
 @app.get('/health')
-def health(): return {'ok': True, 'maxUploadBytes': MAX_BYTES, 'maxDuration': MAX_SECONDS}
+def health(): return {'ok': True, 'mode': 'local' if LOCAL_MODE else 'server', 'maxUploadBytes': MAX_BYTES, 'maxDuration': MAX_SECONDS}
 
 @app.post('/api/import')
 async def import_video(request: Request):

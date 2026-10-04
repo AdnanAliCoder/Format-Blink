@@ -72,12 +72,17 @@ function mergeRanges(items: Range[]) {
   }
   return result;
 }
+const LOCAL_PROCESSOR_BASE = "http://127.0.0.1:8765";
+
 export default function ClipStudio({
   processorBase = "",
 }: {
   processorBase?: string;
 }) {
-  const base = processorBase.replace(/\/$/, "");
+  const configuredBase = processorBase.replace(/\/$/, "");
+  const [runtimeBase, setRuntimeBase] = useState("");
+  const [processorState, setProcessorState] = useState<"checking" | "connected" | "missing">("checking");
+  const base = runtimeBase || configuredBase;
   const [file, setFile] = useState<File | null>(null),
     [link, setLink] = useState(""),
     [source, setSource] = useState(""),
@@ -102,8 +107,33 @@ export default function ClipStudio({
     generation = useRef(0),
     mounted = useRef(true),
     part = useRef(0);
+  async function checkLocalProcessor() {
+    setProcessorState("checking");
+    try {
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => controller.abort(), 2200);
+      const r = await fetch(LOCAL_PROCESSOR_BASE + "/health", {
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      window.clearTimeout(timer);
+      const d = await r.json();
+      if (!r.ok || !d?.ok) throw new Error("Local processor is not ready.");
+      setRuntimeBase(LOCAL_PROCESSOR_BASE);
+      setProcessorState("connected");
+      setError("");
+      setStatus("Local processor connected. Video processing will run on this computer.");
+      return true;
+    } catch {
+      setRuntimeBase("");
+      setProcessorState(configuredBase ? "connected" : "missing");
+      return false;
+    }
+  }
+
   useEffect(() => {
     mounted.current = true;
+    void checkLocalProcessor();
     return () => {
       mounted.current = false;
       if (local.current) URL.revokeObjectURL(local.current);
@@ -166,8 +196,9 @@ export default function ClipStudio({
   }
   function connected() {
     if (base) return true;
+    setProcessorState("missing");
     setError(
-      "Connect the Clip Studio processor in Admin → Integrations. Upload, YouTube import, transcription and export require that service.",
+      "Format Blink Local Processor is not running. Install it on this Windows PC, start it, then click Check again.",
     );
     return false;
   }
@@ -400,7 +431,30 @@ export default function ClipStudio({
               </button>
             )}
           </div>
-          {!jobId && (
+          {!jobId && processorState === "checking" && (
+            <div className="notice" role="status">
+              Checking for the Format Blink Local Processor…
+            </div>
+          )}
+          {!jobId && processorState === "missing" && !configuredBase && (
+            <div className="notice" role="alert" style={{ marginBottom: 18 }}>
+              <strong>Local Processor required</strong>
+              <p>
+                Long-video import, YouTube links, transcription and clip export run on your own Windows PC.
+                Install the free Format Blink Local Processor, keep it running while you use Clip Studio, then check the connection again.
+              </p>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <a className="btn btn-primary" href="/FormatBlink-Clip-Processor-Setup.bat" download>
+                  Download for Windows
+                </a>
+                <button className="btn btn-light" type="button" onClick={() => void checkLocalProcessor()}>
+                  Check again
+                </button>
+              </div>
+              <small>Your source video is processed locally on this computer instead of being uploaded to Format Blink.</small>
+            </div>
+          )}
+          {!jobId && (processorState === "connected" || !!configuredBase) && (
             <div className="video-link-box">
               <label>
                 Upload a video (up to 3 hours with the connected processor)
