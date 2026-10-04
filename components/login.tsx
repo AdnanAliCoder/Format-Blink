@@ -1,6 +1,7 @@
 'use client';
 import {useMemo,useState} from 'react';
 import {Icon} from './brand';
+import {apiFetch,signIn,signUp} from '@/lib/supabase-client';
 
 export default function Login({
   signup=false,
@@ -27,9 +28,14 @@ export default function Login({
   async function submit(e:React.FormEvent){
     e.preventDefault();setBusy(true);setError('');
     try{
-      const r=await fetch('/api/manage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:signup?'signup':'login',email,password,name})});
+      const auth=signup?await signUp(email,password,name):await signIn(email,password);
+      if(signup&&!auth.access_token){
+        setError('Account created. Please check your email to confirm it, then sign in.');
+        return;
+      }
+      const r=await apiFetch('/api/manage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'login-seen'})});
       const d:any=await r.json();
-      if(!r.ok)throw new Error(d.error);
+      if(!r.ok)throw new Error(d.error||'Unable to load your account.');
       location.href=d.user.role==='admin'?'/admin':'/account';
     }catch(e){
       setError(e instanceof Error?e.message:(signup?'Unable to create your account. Please try again.':'Unable to sign in. Please try again.'));
@@ -86,7 +92,6 @@ export default function Login({
           <button className="auth-btn" disabled={busy}>{busy?'Please wait…':signup?'Create account':'Log in'}{!busy&&<Icon name="chevron" size={16}/>}</button>
         </form>
         <p className="auth-foot">{signup?'Already have an account?':'New to Format Blink?'} <a href={signup?'/login':'/signup'}>{signup?'Log in':'Create account'}</a></p>
-        {!signup&&<div className="demo-panel"><div className="head"><Icon name="devices" size={16}/>Explore the admin demo</div><p>A shared demo account for reviewing the website controls.</p><button type="button" className="demo-btn" onClick={()=>{setEmail('admin@formatblink.demo');setPassword('BlinkDemo!2026')}}>Use demo account</button><div className="cred">admin@formatblink.demo · BlinkDemo!2026</div></div>}
       </section>
     </div>
   </div>;
