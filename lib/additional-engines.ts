@@ -6,11 +6,13 @@ const types:Record<string,string>={pdf:'application/pdf',png:'image/png',jpg:'im
 export function output(data:Blob|Uint8Array|string,ext:string,name:string,detail?:string):Output{return {blob:data instanceof Blob?data:new Blob([typeof data==='string'?data:Uint8Array.from(data)],{type:types[ext]||'application/octet-stream'}),name:`${name}.${ext}`,detail};}
 export function newCanvas(width:number,height:number){if(!Number.isFinite(width)||!Number.isFinite(height)||width<1||height<1||width>16000||height>16000||width*height>25000000)throw new Error('Output must be within 16,000 pixels per side and 25 megapixels.');const c=document.createElement('canvas');c.width=Math.ceil(width);c.height=Math.ceil(height);return c;}
 async function remote(t:Tool,file:File,s:Settings,p:Progress,signal:AbortSignal){
-  if(!s.processorUrl)throw new Error('This tool needs a processing server. Configure Tools processor URL in Admin → Integrations or FORMAT_BLINK_CONFIG_JSON.');
-  const base=new URL(s.processorUrl);if(base.protocol!=='https:'&&!['localhost','127.0.0.1'].includes(base.hostname))throw new Error('The processor must use HTTPS.');
+  const processor=(s.processorUrl||'http://127.0.0.1:8766').replace(/\/$/,'');
+  const base=new URL(processor);if(base.protocol!=='https:'&&!['localhost','127.0.0.1'].includes(base.hostname))throw new Error('The processor must use HTTPS.');
   const form=new FormData();form.append('file',file);form.append('settings',JSON.stringify({password:s.password,language:s.language}));
-  p(15,'Uploading to the connected processing service…');
-  const response=await fetch(`${s.processorUrl.replace(/\/$/,'')}/api/tools/${t.slug}`,{method:'POST',body:form,signal});
+  p(15,s.processorUrl?'Uploading to the connected processing service…':'Processing on your computer…');
+  let response:Response;
+  try{response=await fetch(`${processor}/api/tools/${t.slug}`,{method:'POST',body:form,signal});}
+  catch{throw new Error('Format Blink Tools Processor is not running. Install it on this Windows PC, start it, then try again.');}
   if(!response.ok){const error=await response.json().catch(()=>null);throw new Error(typeof error?.detail==='string'?error.detail:`Processing service returned ${response.status}. Please retry later.`);}
   const expected=types[t.output];if(expected&&!response.headers.get('content-type')?.includes(expected))throw new Error('The processor returned an unexpected file type.');
   const blob=await response.blob();if(!blob.size)throw new Error('The processor returned an empty file.');

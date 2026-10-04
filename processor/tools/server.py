@@ -19,7 +19,8 @@ class TemporaryFileResponse(FileResponse):
             shutil.rmtree(Path(self.path).parent, ignore_errors=True)
 
 app = FastAPI()
-ORIGINS = [s.strip() for s in os.environ.get('ALLOWED_ORIGINS', 'http://localhost:3000').split(',') if s.strip()]
+ORIGINS = [s.strip() for s in os.environ.get('ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000,https://formatblink.vercel.app,https://formatblink.com,https://www.formatblink.com').split(',') if s.strip()]
+LOCAL_MODE = os.environ.get('FORMAT_BLINK_LOCAL', '0') == '1'
 MAX_BYTES = 100 * 1024 * 1024
 active_jobs = 0
 app.add_middleware(CORSMiddleware, allow_origins=ORIGINS, allow_methods=['POST', 'GET'], allow_headers=['Content-Type'])
@@ -30,7 +31,11 @@ class UploadGuard:
         if scope['type'] != 'http' or scope['method'] != 'POST':
             return await self.app(scope, receive, send)
         headers = dict(scope['headers'])
-        if headers.get(b'origin', b'').decode() not in ORIGINS:
+        origin = headers.get(b'origin', b'').decode()
+        allowed = origin in ORIGINS
+        if LOCAL_MODE and origin.startswith('https://') and ('formatblink' in origin.lower() or origin.endswith('.vercel.app')):
+            allowed = True
+        if not allowed:
             return await JSONResponse({'detail':'This origin is not allowed.'}, status_code=403)(scope, receive, send)
         count = 0
         async def limited_receive():
@@ -44,7 +49,7 @@ class UploadGuard:
 app.add_middleware(UploadGuard)
 
 @app.get('/health')
-def health(): return {'ok': True, 'tools': sorted(EXTENSIONS)}
+def health(): return {'ok': True, 'mode': 'local' if LOCAL_MODE else 'server', 'tools': sorted(EXTENSIONS)}
 
 @app.post('/api/tools/{slug}')
 async def process(slug: str, file: UploadFile = File(...), settings: str = Form('{}')):

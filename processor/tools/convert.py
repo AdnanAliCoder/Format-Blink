@@ -35,8 +35,20 @@ def pdf_reader(source, password=''):
 
 def render(source, directory):
     pdf_reader(source)
-    command(['pdftoppm', '-scale-to', '2200', '-png', str(source), str(directory / 'page')])
-    return sorted(directory.glob('page-*.png'), key=lambda p: int(p.stem.split('-')[-1]))
+    import pypdfium2 as pdfium
+    pdf = pdfium.PdfDocument(str(source))
+    images = []
+    try:
+        for index in range(len(pdf)):
+            page = pdf[index]
+            bitmap = page.render(scale=2.0)
+            image = directory / f'page-{index+1}.png'
+            bitmap.to_pil().save(image, 'PNG')
+            images.append(image)
+            page.close()
+    finally:
+        pdf.close()
+    return images
 
 def convert(slug, source, settings, directory):
     if slug not in EXTENSIONS or source.suffix.lower() not in EXTENSIONS[slug][0]:
@@ -142,10 +154,30 @@ def convert(slug, source, settings, directory):
             with output.open('wb') as handle:
                 writer.write(handle)
     elif slug == 'html-to-pdf':
-        from weasyprint import HTML
-        def deny_resources(url, *args, **kwargs):
-            raise ValueError('External and local resources are disabled.')
-        HTML(string=source.read_text(encoding='utf-8'), url_fetcher=deny_resources).write_pdf(output)
+        html = source.read_text(encoding='utf-8')
+        if any(token in html.lower() for token in ('<script', 'http://', 'https://', 'file://')):
+            raise ValueError('Use self-contained HTML without scripts or external resources.')
+        try:
+            from weasyprint import HTML
+            def deny_resources(url, *args, **kwargs):
+                raise ValueError('External and local resources are disabled.')
+            HTML(string=html, url_fetcher=deny_resources).write_pdf(output)
+        except Exception:
+            from bs4 import BeautifulSoup
+            from reportlab.lib.pagesizes import A4
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+            from reportlab.lib.styles import getSampleStyleSheet
+            soup = BeautifulSoup(html, 'html.parser')
+            for node in soup(['script','style']):
+                node.decompose()
+            styles = getSampleStyleSheet()
+            story = []
+            for line in (x.strip() for x in soup.get_text('\n').splitlines()):
+                if line:
+                    story.extend([Paragraph(line.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;'), styles['BodyText']), Spacer(1, 6)])
+            if not story:
+                raise ValueError('No printable text found in the HTML file.')
+            SimpleDocTemplate(str(output), pagesize=A4).build(story)
     elif slug == 'background-remover':
         from PIL import Image
         from rembg import remove, new_session

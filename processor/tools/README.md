@@ -1,6 +1,10 @@
 # Format Blink tools processor
 
-This separate Python service implements the 13 tools marked `processing: 'server'` in `lib/additional-tools.ts`. The other 26 new tools run entirely in the browser.
+This Python service implements the 13 tools marked `processing: 'server'` in `lib/additional-tools.ts`. The other 26 new tools run entirely in the browser.
+
+## Free local-PC mode
+
+For the zero-hosting-cost setup, users can install `/FormatBlink-Tools-Processor-Setup.bat`. It starts this service on `http://127.0.0.1:8766`; the frontend auto-detects it when no Admin Tools processor URL is configured. The service binds only to loopback, so conversion stays on the user's own PC. Install once, then open the Desktop shortcut whenever these heavy tools are needed.
 
 ## Deploy
 
