@@ -1,10 +1,13 @@
-import {database,record} from './store';
-export const DEMO_EMAIL='admin@formatblink.demo';
-export const DEMO_PASSWORD='BlinkDemo!2026';
-export type User={id:string;email:string;name:string;role:string;status:string;created_at:string;last_login:string|null};
-const hex=(b:ArrayBuffer)=>Array.from(new Uint8Array(b),x=>x.toString(16).padStart(2,'0')).join('');
-export async function passwordHash(password:string,salt=crypto.randomUUID()){const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(password),'PBKDF2',false,['deriveBits']);const h=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:new TextEncoder().encode(salt),iterations:100000},key,256);return salt+':'+hex(h)}
-export async function seedDemo(){const db=database();const found=await db.prepare('SELECT id FROM users WHERE email = ?').bind(DEMO_EMAIL).first();if(!found)await db.prepare('INSERT OR IGNORE INTO users(id,email,name,password,role,status,created_at) VALUES(?,?,?,?,?,?,?)').bind('demo-admin',DEMO_EMAIL,'Demo administrator',await passwordHash(DEMO_PASSWORD),'admin','active',new Date().toISOString()).run()}
-export async function currentUser(request:Request):Promise<User|null>{const token=request.headers.get('cookie')?.match(/(?:^|;\s*)fb_session=([^;]+)/)?.[1];if(!token)return null;const hashed=hex(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token)));return await database().prepare("SELECT u.id,u.email,u.name,u.role,u.status,u.created_at,u.last_login FROM users u JOIN sessions s ON s.user_id=u.id WHERE s.token=? AND s.expires>? AND u.status='active'").bind(hashed,Date.now()).first<User>()}
-export async function session(user:User,request:Request){const token=hex(crypto.getRandomValues(new Uint8Array(32)).buffer),hashed=hex(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token)));const now=new Date().toISOString();await database().batch([database().prepare('INSERT INTO sessions(token,user_id,expires) VALUES(?,?,?)').bind(hashed,user.id,Date.now()+28800000),database().prepare('UPDATE users SET last_login=? WHERE id=?').bind(now,user.id),database().prepare('DELETE FROM sessions WHERE expires<?').bind(Date.now())]);await record(user.id,'Login',user.email);return 'fb_session='+token+'; Path=/; HttpOnly; SameSite=Strict; Max-Age=28800'+(request.url.startsWith('https:')?'; Secure':'')}
-export function sameOrigin(request:Request){const origin=request.headers.get('origin');return !origin||origin===new URL(request.url).origin}
+export type User={
+  id:string;
+  email:string;
+  name:string;
+  role:string;
+  status:string;
+  created_at:string;
+  last_login:string|null;
+};
+
+// Authentication is handled by Supabase Auth.
+// Browser session helpers live in lib/supabase-client.ts and
+// server-side authorization helpers live in lib/supabase.ts.
