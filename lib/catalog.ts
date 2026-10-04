@@ -37,7 +37,9 @@ t('video','resize-video','Resize video','Choose a new width and keep the video p
 t('video','change-video-resolution','Change video resolution','Export your video at 360p, 480p, 720p or 1080p.','scan',vid,'mp4','Optimize video'),
 t('video','extract-video-frames','Extract video frames','Save still frames from a video as a ZIP of JPG images.','image',vid,'zip','Edit video')];
 export const tools=[...ALL_TOOLS,...additionalTools];
-export const toolPath=(tool:Tool)=>`/tools/${tool.slug}/`;
+const toolSection:Record<Category,string>={file:'pdf',image:'image',video:'video'};
+export const toolPath=(tool:Tool)=>`/${toolSection[tool.category]}/${tool.slug}`;
+export const toolFromPath=(path:string)=>tools.find(t=>toolPath(t)===path.replace(/\/$/,''));
 export const categoryInfo={file:{name:'PDF tools',short:'PDF',description:'Merge, split, organize and convert PDF documents in your browser.',icon:'file',tag:'DOCUMENTS, REFITTED'},image:{name:'Image tools',short:'Image',description:'Convert, compress, resize and edit images directly in your browser.',icon:'image',tag:'PIXELS, REFITTED'},video:{name:'Video & audio tools',short:'Video',description:'Convert, trim, compress and extract audio from short videos on your device.',icon:'video',tag:'MEDIA, REFITTED'}}[SITE.category];
 export const hubs:Record<string,{title:string;description:string;filter:(t:Tool)=>boolean}>={};
 const add=(slug:string,title:string,description:string,filter:(t:Tool)=>boolean)=>hubs[`/collections/${slug}/`]={title,description,filter};
