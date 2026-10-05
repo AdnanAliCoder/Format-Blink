@@ -41,6 +41,18 @@ with tempfile.TemporaryDirectory() as tmp:
  out=convert('unlock-pdf',root/'locked.pdf',{'password':'sample-test-123'},Path(tmp));assert not PdfReader(out).is_encrypted;results['unlock-pdf']='PASS'
  try: convert('unlock-pdf',root/'locked.pdf',{'password':'wrong'},Path(tmp));raise AssertionError('wrong password accepted')
  except ValueError: results['wrong-password']='PASS'
+with tempfile.TemporaryDirectory() as tmp:
+ out=convert('pdf-to-word',root/'scanned.pdf',{'language':'eng+urd+hin'},Path(tmp))
+ scanned_doc=Document(out)
+ scanned_text='\n'.join(p.text for p in scanned_doc.paragraphs)
+ assert 'FORMAT' in scanned_text and '123' in scanned_text
+ results['pdf-to-word-scanned-auto-ocr']='PASS'
+with tempfile.TemporaryDirectory() as tmp:
+ out=convert('pdf-to-powerpoint',root/'sample.pdf',{'language':'eng'},Path(tmp))
+ deck=Presentation(out)
+ slide_text='\n'.join(shape.text for slide in deck.slides for shape in slide.shapes if getattr(shape,'has_text_frame',False))
+ assert 'Format Blink Test' in slide_text and 'Second page' in slide_text
+ results['pdf-to-powerpoint-editable-text']='PASS'
 print(json.dumps(results,indent=2));(root/'processor-results.json').write_text(json.dumps(results,indent=2))
 
 if any(v.startswith('FAIL') for v in results.values()): raise SystemExit(1)
