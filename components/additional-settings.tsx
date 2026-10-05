@@ -19,7 +19,6 @@ export function AdditionalSettings({tool,settings:s,update,file}:{tool:Tool;sett
     {slug==='watermark-image'&&number('opacity','Opacity (0–1)',0.05,1,0.05)}
     {slug==='image-upscaler'&&select('scale','Enlargement',['2','4'])}
     {slug==='blur-image'&&number('blur','Blur radius (px)',1,100)}
-    {slug==='compress-pdf'&&number('quality','JPEG quality (%)',20,95)}
     {slug==='gif-compressor'&&<>{number('width','Maximum width (px)',2,1600)}{number('resolution','Frames per second',1,30)}{select('palette','Palette colours',['64','128','256'])}</>}
     {slug==='video-speed-changer'&&select('speed','Playback speed',['0.25','0.5','0.75','1.25','1.5','2','3','4'])}
     {slug==='loop-video'&&number('loops','Total repetitions',2,10)}
