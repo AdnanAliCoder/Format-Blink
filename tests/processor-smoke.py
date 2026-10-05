@@ -49,6 +49,13 @@ with tempfile.TemporaryDirectory() as tmp:
  assert len(scanned_doc.inline_shapes)>=1
  results['pdf-to-word-scanned-auto-ocr']='PASS'
 with tempfile.TemporaryDirectory() as tmp:
+ out=convert('pdf-to-excel',root/'scanned.pdf',{'language':'eng+urd+hin'},Path(tmp))
+ scanned_book=load_workbook(out)
+ assert scanned_book.sheetnames
+ scanned_values=' '.join(str(cell.value or '') for sheet in scanned_book.worksheets for row in sheet.iter_rows() for cell in row)
+ assert 'FORMAT' in scanned_values and '123' in scanned_values
+ results['pdf-to-excel-scanned-auto-ocr']='PASS'
+with tempfile.TemporaryDirectory() as tmp:
  out=convert('pdf-to-powerpoint',root/'sample.pdf',{'language':'eng'},Path(tmp))
  deck=Presentation(out)
  slide_text='\n'.join(shape.text for slide in deck.slides for shape in slide.shapes if getattr(shape,'has_text_frame',False))
