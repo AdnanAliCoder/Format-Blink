@@ -45,7 +45,7 @@ export const hubs:Record<string,{title:string;description:string;filter:(t:Tool)
 const add=(slug:string,title:string,description:string,filter:(t:Tool)=>boolean)=>hubs[`/collections/${slug}/`]={title,description,filter};
 if(true){
  add('organize-pdf','Organize PDF','Merge, split, reorder, extract and remove PDF pages.',t=>t.group==='Organize PDF');
- add('convert-pdf','Convert PDF','Move between PDF documents and common image formats.',t=>t.group.includes('Convert'));
+ add('convert-pdf','Convert PDF','Move between PDF documents and common image formats.',t=>t.category==='file'&&t.group.includes('Convert'));
  add('pdf-utilities','PDF utilities','Add page numbers, watermarks and other finishing touches.',t=>t.group==='PDF utilities');
 }
 if(true){
@@ -78,7 +78,7 @@ avi:{name:'AVI',description:'AVI is an older media container used in legacy work
 mp3:{name:'MP3',description:'MP3 is a widely supported lossy audio format.',best:'Spoken recordings and extracted soundtracks.',limit:'A higher bitrate cannot restore missing source detail.',mime:'audio/mpeg'}
 };
 const KEYS:Record<Category,string[]>={file:['pdf','jpg','png','webp'],image:['jpg','png','webp','heic','avif','svg','ico','gif'],video:['mp4','webm','mov','mkv','avi','mp3','gif']};
-export const formats=Object.fromEntries(KEYS[SITE.category].map(k=>[k,ALL_FORMATS[k]]));
+export const formats=ALL_FORMATS;
 const ALL_GUIDES=[
  ['how-to-merge-pdf-files','How to merge PDF files','merge-pdf','Put several documents into one clean PDF.'],['how-to-split-a-pdf','How to split a PDF','split-pdf','Save individual pages from one PDF.'],['how-to-convert-images-to-pdf','How to convert images to PDF','images-to-pdf','Turn pictures into a shareable document.'],
  ['how-to-convert-jpg-to-png','How to convert JPG to PNG','jpg-to-png','Choose a lossless format for editing.'],['how-to-convert-png-to-webp','How to convert PNG to WebP','png-to-webp','Prepare lighter images for the web.'],['how-to-convert-heic-to-jpg','How to convert HEIC to JPG','heic-to-jpg','Use phone photos in more applications.'],['how-to-reduce-image-file-size','How to reduce image file size','compress-image','Balance file size and visible detail.'],['how-to-resize-an-image','How to resize an image','resize-image','Choose the exact dimensions you need.'],
