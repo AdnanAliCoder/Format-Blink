@@ -42,10 +42,10 @@ The frontend blocks processing when the URL is absent and discloses the upload b
 
 | Input tool | Output behavior |
 |---|---|
-| PDF to Word | Editable extracted text in DOCX; not original-layout reconstruction |
+| PDF to Word | Automatic searchable/scanned detection; scanned pages are OCRed and the DOCX contains editable text instead of page screenshots |
 | Word / Excel / PowerPoint to PDF | LibreOffice rendering; installed fonts and print settings affect layout |
 | PDF to Excel | Detected text tables; rejects documents without tables; extracted strings remain literal text |
-| PDF to PowerPoint | One rasterized PDF page per slide; slide text is not separately editable |
+| PDF to PowerPoint | Rebuilds text and embedded images as editable slide objects; scanned pages use OCR text instead of full-page screenshots |
 | OCR PDF | Rasterizes pages, recognizes text, returns a searchable PDF |
 | Protect / Unlock PDF | AES-256 protection / decryption with the supplied correct password |
 | HTML to PDF | Self-contained uploaded HTML; external assets are blocked |
