@@ -5,7 +5,8 @@ import type {Settings} from '@/lib/engines';
 export function AdditionalSettings({tool,settings:s,update,file}:{tool:Tool;settings:Settings;update:(key:keyof Settings,value:any)=>void;file?:File}){
   const slug=tool.slug;
   const number=(key:keyof Settings,label:string,min:number,max:number,step=1)=><label className="field">{label}<input type="number" value={s[key] as number} min={min} max={max} step={step} onChange={e=>update(key,Number(e.target.value))}/></label>;
-  const select=(key:keyof Settings,label:string,values:string[])=><label className="field">{label}<select value={String(s[key])} onChange={e=>update(key,typeof s[key]==='number'?Number(e.target.value):e.target.value)}>{values.map(v=><option key={v} value={v}>{v}</option>)}</select></label>;
+  const optionLabel=(v:string)=>({'eng+urd+hin':'Auto — English + Urdu + Hindi','eng':'English','urd':'Urdu','hin':'Hindi','eng+urd':'English + Urdu','eng+hin':'English + Hindi'} as Record<string,string>)[v]||v;
+  const select=(key:keyof Settings,label:string,values:string[])=><label className="field">{label}<select value={String(s[key])} onChange={e=>update(key,typeof s[key]==='number'?Number(e.target.value):e.target.value)}>{values.map(v=><option key={v} value={v}>{optionLabel(v)}</option>)}</select></label>;
   const textTools=['pdf-editor','sign-pdf','watermark-image','add-text-to-image'];
   const rectangles=['crop-pdf','redact-pdf','crop-video','merge-video'];
   const pdfPosition=['pdf-editor','sign-pdf','crop-pdf','redact-pdf'].includes(slug);
