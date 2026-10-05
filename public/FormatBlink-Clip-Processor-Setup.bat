@@ -73,7 +73,7 @@ if errorlevel 1 (
 )
 
 echo Downloading Format Blink processor files...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/AdnanAliCoder/Format-Blink/main/processor/studio/server.py' -OutFile ($env:ROOT+'\server.py'); Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/AdnanAliCoder/Format-Blink/main/processor/python/transcribe.py' -OutFile ($env:ROOT+'\transcribe.py')"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/AdnanAliCoder/Format-Blink/main/processor/studio/server.py' -OutFile ($env:ROOT+'\server.py'); Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/AdnanAliCoder/Format-Blink/main/processor/python/transcribe.py' -OutFile ($env:ROOT+'\transcribe.py'); Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/AdnanAliCoder/Format-Blink/main/processor/studio/requirements.txt' -OutFile ($env:ROOT+'\requirements.txt')"
 if errorlevel 1 (
   echo ERROR: Could not download processor files. Check your internet connection.
   pause
@@ -130,6 +130,15 @@ if errorlevel 1 (
 >>"%STARTER%" echo if not exist "%%VPY%%" ^(
 >>"%STARTER%" echo   echo Local Processor installation is incomplete.
 >>"%STARTER%" echo   echo Please download and run FormatBlink-Clip-Processor-Setup.bat again.
+>>"%STARTER%" echo   pause
+>>"%STARTER%" echo   exit /b 1
+>>"%STARTER%" echo ^)
+>>"%STARTER%" echo echo Checking for Clip Processor updates...
+>>"%STARTER%" echo powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $items=@(@('processor/studio/server.py','server.py'),@('processor/python/transcribe.py','transcribe.py'),@('processor/studio/requirements.txt','requirements.txt')); foreach($item in $items){$tmp=Join-Path $env:TEMP ('formatblink-clip-'+$item[1]); Invoke-WebRequest -UseBasicParsing ('https://raw.githubusercontent.com/AdnanAliCoder/Format-Blink/main/'+$item[0]) -OutFile $tmp; Move-Item -Force $tmp (Join-Path $env:ROOT $item[1])}" ^>nul 2^>^&1
+>>"%STARTER%" echo if errorlevel 1 echo WARNING: Update check failed. Starting the installed Clip Processor version.
+>>"%STARTER%" echo "%%VPY%%" -m pip install --disable-pip-version-check -q -r "%%ROOT%%\requirements.txt"
+>>"%STARTER%" echo if errorlevel 1 ^(
+>>"%STARTER%" echo   echo ERROR: Clip Processor dependency update failed. Run setup again.
 >>"%STARTER%" echo   pause
 >>"%STARTER%" echo   exit /b 1
 >>"%STARTER%" echo ^)
