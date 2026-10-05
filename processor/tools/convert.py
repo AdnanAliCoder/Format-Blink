@@ -61,6 +61,87 @@ def ocr_language(preferred='eng+urd+hin'):
         raise ValueError('OCR language data is not installed on the processor.')
     return '+'.join(requested)
 
+def rebuild_ocr_page(image, ocr_pdf, width, height):
+    """Create a clean OCR PDF page: editable text plus non-text graphics, no page screenshot."""
+    import html
+    import fitz
+    source = fitz.open(stream=ocr_pdf, filetype='pdf')
+    rebuilt = fitz.open()
+    try:
+        ocr_page = source[0]
+        page = rebuilt.new_page(width=width, height=height)
+        sx = width / max(1, ocr_page.rect.width)
+        sy = height / max(1, ocr_page.rect.height)
+        words = ocr_page.get_text('words', sort=False)
+        lines = {}
+        for word in words:
+            if len(word) < 8 or not str(word[4]).strip():
+                continue
+            lines.setdefault((word[5], word[6]), []).append(word)
+        for items in lines.values():
+            items.sort(key=lambda item: item[7])
+            text = ' '.join(str(item[4]).strip() for item in items if str(item[4]).strip())
+            if not text:
+                continue
+            x0 = min(item[0] for item in items) * sx
+            y0 = min(item[1] for item in items) * sy
+            x1 = max(item[2] for item in items) * sx
+            y1 = max(item[3] for item in items) * sy
+            font_size = max(6, (y1-y0) * 0.78)
+            rect = fitz.Rect(x0, y0, max(x0+2, x1+4), max(y0+font_size+2, y1+4))
+            markup = f'<div style="font-size:{font_size:.2f}pt;line-height:1;margin:0">{html.escape(text)}</div>'
+            try:
+                page.insert_htmlbox(rect, markup, css='* { font-family: sans-serif; }')
+            except Exception:
+                latin = text.encode('latin-1', errors='ignore').decode().strip()
+                if latin:
+                    page.insert_textbox(rect, latin, fontsize=font_size, fontname='helv')
+
+        # Preserve photos, logos and diagrams as separate image crops. OCR text
+        # boxes are masked out first so normal paragraphs are not reinserted as pictures.
+        try:
+            import cv2
+            import numpy as np
+            pixels = np.array(image.convert('RGB'))
+            gray = cv2.cvtColor(pixels, cv2.COLOR_RGB2GRAY)
+            mask = cv2.threshold(gray, 242, 255, cv2.THRESH_BINARY_INV)[1]
+            ow, oh = max(1, ocr_page.rect.width), max(1, ocr_page.rect.height)
+            for word in words:
+                x0 = max(0, int(word[0] / ow * image.width) - 5)
+                y0 = max(0, int(word[1] / oh * image.height) - 5)
+                x1 = min(image.width, int(word[2] / ow * image.width) + 5)
+                y1 = min(image.height, int(word[3] / oh * image.height) + 5)
+                mask[y0:y1, x0:x1] = 0
+            kernel = np.ones((5, 5), np.uint8)
+            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+            count, _, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
+            page_area = image.width * image.height
+            minimum = max(1800, int(page_area * 0.0015))
+            for index in range(1, count):
+                x, y, w, h, area = [int(v) for v in stats[index]]
+                box_area = w * h
+                if area < minimum or w < 36 or h < 36 or not box_area:
+                    continue
+                if box_area > page_area * 0.82 or area / box_area < 0.07:
+                    continue
+                crop = image.crop((x, y, x+w, y+h))
+                buffer = io.BytesIO()
+                crop.save(buffer, 'PNG')
+                rect = fitz.Rect(
+                    x / image.width * width,
+                    y / image.height * height,
+                    (x+w) / image.width * width,
+                    (y+h) / image.height * height,
+                )
+                page.insert_image(rect, stream=buffer.getvalue(), keep_proportion=False)
+        except Exception:
+            # Graphic detection is best-effort; editable OCR text remains the priority.
+            pass
+        return rebuilt.tobytes(garbage=4, deflate=True)
+    finally:
+        source.close()
+        rebuilt.close()
+
 def prepare_word_source(source, reader, directory, language):
     import re
     scanned = [
@@ -91,11 +172,16 @@ def prepare_word_source(source, reader, directory, language):
                     config='--dpi 144 --psm 3',
                     timeout=180,
                 )
+                rebuilt = rebuild_ocr_page(
+                    image,
+                    data,
+                    float(original.mediabox.width),
+                    float(original.mediabox.height),
+                )
             finally:
                 bitmap.close()
                 page.close()
-            recognized = PdfReader(io.BytesIO(data)).pages[0]
-            recognized.scale_to(float(original.mediabox.width), float(original.mediabox.height))
+            recognized = PdfReader(io.BytesIO(rebuilt)).pages[0]
             writer.add_page(recognized)
     finally:
         pdf.close()
