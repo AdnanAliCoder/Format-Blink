@@ -51,12 +51,117 @@ def render(source, directory):
         pdf.close()
     return images
 
+def ocr_language(preferred='eng+urd+hin'):
+    import pytesseract
+    available = set(pytesseract.get_languages(config=''))
+    requested = [name for name in str(preferred or 'eng+urd+hin').split('+') if name in available]
+    if not requested:
+        requested = [name for name in ('eng', 'urd', 'hin') if name in available]
+    if not requested:
+        raise ValueError('OCR language data is not installed on the processor.')
+    return '+'.join(requested)
+
+def prepare_word_source(source, reader, directory, language):
+    import re
+    scanned = [
+        index for index, page in enumerate(reader.pages)
+        if len(re.sub(r'\s+', '', page.extract_text() or '')) < 8
+    ]
+    if not scanned:
+        return source, False
+    import pypdfium2 as pdfium
+    import pytesseract
+    from pypdf import PdfReader, PdfWriter
+    lang = ocr_language(language)
+    writer = PdfWriter()
+    pdf = pdfium.PdfDocument(str(source))
+    try:
+        for index, original in enumerate(reader.pages):
+            if index not in scanned:
+                writer.add_page(original)
+                continue
+            page = pdf[index]
+            bitmap = page.render(scale=2.0)
+            image = bitmap.to_pil().convert('RGB')
+            try:
+                data = pytesseract.image_to_pdf_or_hocr(
+                    image,
+                    extension='pdf',
+                    lang=lang,
+                    config='--dpi 144 --psm 3',
+                    timeout=180,
+                )
+            finally:
+                bitmap.close()
+                page.close()
+            recognized = PdfReader(io.BytesIO(data)).pages[0]
+            recognized.scale_to(float(original.mediabox.width), float(original.mediabox.height))
+            writer.add_page(recognized)
+    finally:
+        pdf.close()
+    target = directory / 'word-ocr-source.pdf'
+    with target.open('wb') as handle:
+        writer.write(handle)
+    return target, True
+
+def strip_full_page_word_images(output):
+    # OCR PDFs can contain a full-page scan behind a text layer. Keep the text
+    # editable and remove page-sized screenshots while retaining smaller images.
+    from docx import Document
+    doc = Document(output)
+    if not doc.sections:
+        return 0
+    max_width = max(int(section.page_width) for section in doc.sections)
+    max_height = max(int(section.page_height) for section in doc.sections)
+    removed = 0
+    for shape in list(doc.inline_shapes):
+        if int(shape.width) >= int(max_width * 0.82) and int(shape.height) >= int(max_height * 0.55):
+            parent = shape._inline.getparent()
+            if parent is not None:
+                parent.remove(shape._inline)
+                removed += 1
+    if removed:
+        doc.save(output)
+    return removed
+
+def ocr_word_fallback(source, output, language):
+    # Last-resort scanned-document path: always return editable text rather than
+    # silently embedding whole PDF pages as pictures.
+    import pypdfium2 as pdfium
+    import pytesseract
+    from docx import Document
+    doc = Document()
+    pdf = pdfium.PdfDocument(str(source))
+    found = False
+    try:
+        lang = ocr_language(language)
+        for index in range(len(pdf)):
+            if index:
+                doc.add_page_break()
+            page = pdf[index]
+            bitmap = page.render(scale=2.0)
+            image = bitmap.to_pil().convert('RGB')
+            try:
+                text = pytesseract.image_to_string(image, lang=lang, config='--psm 3', timeout=180)
+            finally:
+                bitmap.close()
+                page.close()
+            chunks = [part.strip() for part in text.split('\n\n') if part.strip()]
+            for chunk in chunks:
+                doc.add_paragraph(chunk)
+                found = True
+    finally:
+        pdf.close()
+    if not found:
+        raise ValueError('No readable text could be recognized from this PDF.')
+    doc.save(output)
+
 def convert(slug, source, settings, directory):
     if slug not in EXTENSIONS or source.suffix.lower() not in EXTENSIONS[slug][0]:
         raise ValueError('Unsupported input format.')
     output = directory / ('result.' + EXTENSIONS[slug][1])
     language = settings.get('language', 'eng')
-    if language not in {'eng', 'urd', 'hin', 'eng+urd', 'eng+hin'}:
+    if language not in {'eng', 'urd', 'hin', 'eng+urd', 'eng+hin', 'eng+urd+hin'}:
         raise ValueError('Unsupported OCR language.')
     if slug in {'word-to-pdf', 'excel-to-pdf', 'powerpoint-to-pdf'}:
         profile = directory / 'lo-profile'
@@ -83,20 +188,23 @@ def convert(slug, source, settings, directory):
         with output.open('wb') as handle:
             writer.write(handle)
     elif slug == 'pdf-to-word':
-        # PDF-to-Word is an editable document conversion. Never rasterize
-        # complete PDF pages into Word pictures.
+        # Automatic path: searchable PDFs convert directly; scanned/mixed PDFs
+        # are OCRed first. The user never has to choose an OCR/appearance mode.
         reader = pdf_reader(source)
-        if not any((page.extract_text() or '').strip() for page in reader.pages):
-            raise ValueError('This PDF has no selectable text. Run OCR PDF first, then convert the OCR result to Word.')
+        word_source, used_ocr = prepare_word_source(source, reader, directory, language)
         from pdf2docx import Converter
-        converter = Converter(str(source))
+        converter = Converter(str(word_source))
         try:
             converter.convert(str(output), multi_processing=False)
-        except Exception as error:
-            raise ValueError('Editable PDF-to-Word conversion failed. Try OCR PDF first if the source is scanned or image-only.') from error
+        except Exception:
+            if used_ocr:
+                ocr_word_fallback(source, output, language)
+            else:
+                raise ValueError('Editable PDF-to-Word conversion failed for this document.')
         finally:
             converter.close()
-        # Reject image-only DOCX output if a converter regression occurs.
+        if used_ocr:
+            strip_full_page_word_images(output)
         import zipfile
         try:
             with zipfile.ZipFile(output) as package:
@@ -104,7 +212,7 @@ def convert(slug, source, settings, directory):
         except Exception as error:
             raise ValueError('The Word document could not be validated.') from error
         if b'<w:t' not in document_xml:
-            raise ValueError('The converter did not produce editable Word text. Run OCR PDF first for scanned pages.')
+            ocr_word_fallback(source, output, language)
     elif slug == 'pdf-to-excel':
         import pdfplumber
         from openpyxl import Workbook
@@ -135,21 +243,104 @@ def convert(slug, source, settings, directory):
             raise ValueError('No text-based tables detected. OCR scanned pages first.')
         book.save(output)
     elif slug == 'pdf-to-powerpoint':
+        # Rebuild text and embedded images as editable slide objects instead of
+        # placing a screenshot of each PDF page on the slide.
+        import fitz
+        import pytesseract
         from pptx import Presentation
-        from pptx.util import Inches
-        from PIL import Image
-        images = render(source, directory)
+        from pptx.dml.color import RGBColor
+        from pptx.util import Pt
+        from pytesseract import Output as TesseractOutput
         deck = Presentation()
-        with Image.open(images[0]) as first:
-            ratio = first.width / first.height
-        deck.slide_width = Inches(10)
-        deck.slide_height = Inches(10 / ratio)
-        for image in images:
-            slide = deck.slides.add_slide(deck.slide_layouts[6])
-            with Image.open(image) as im:
-                scale = min(deck.slide_width / im.width, deck.slide_height / im.height)
-                w, h = round(im.width * scale), round(im.height * scale)
-            slide.shapes.add_picture(str(image), (deck.slide_width-w)//2, (deck.slide_height-h)//2, width=w, height=h)
+        pdf = fitz.open(str(source))
+        first = pdf[0].rect
+        deck.slide_width = Pt(first.width)
+        deck.slide_height = Pt(first.height)
+        lang = ocr_language(language)
+        try:
+            for index, page in enumerate(pdf):
+                slide = deck.slides.add_slide(deck.slide_layouts[6])
+                sx = deck.slide_width / page.rect.width
+                sy = deck.slide_height / page.rect.height
+                blocks = page.get_text('dict').get('blocks', [])
+                has_text = False
+                for block in blocks:
+                    bbox = block.get('bbox', (0, 0, 0, 0))
+                    x0, y0, x1, y1 = bbox
+                    if block.get('type') == 0:
+                        for line in block.get('lines', []):
+                            line_box = line.get('bbox', bbox)
+                            lx0, ly0, lx1, ly1 = line_box
+                            spans = [span for span in line.get('spans', []) if span.get('text')]
+                            if not spans:
+                                continue
+                            has_text = True
+                            shape = slide.shapes.add_textbox(
+                                int(lx0 * sx), int(ly0 * sy),
+                                max(1, int((lx1-lx0) * sx)), max(1, int((ly1-ly0) * sy))
+                            )
+                            frame = shape.text_frame
+                            frame.clear()
+                            frame.margin_left = frame.margin_right = 0
+                            frame.margin_top = frame.margin_bottom = 0
+                            paragraph = frame.paragraphs[0]
+                            for span in spans:
+                                run = paragraph.add_run()
+                                run.text = span.get('text', '')
+                                run.font.size = Pt(max(1, float(span.get('size', 10))))
+                                run.font.name = span.get('font') or None
+                                flags = int(span.get('flags', 0))
+                                run.font.bold = bool(flags & 16)
+                                run.font.italic = bool(flags & 2)
+                                color = int(span.get('color', 0))
+                                run.font.color.rgb = RGBColor((color >> 16) & 255, (color >> 8) & 255, color & 255)
+                    elif block.get('type') == 1 and block.get('image'):
+                        page_area = max(1, page.rect.width * page.rect.height)
+                        block_area = max(0, (x1-x0) * (y1-y0))
+                        # Skip full-page scans; OCR below recreates their text.
+                        if block_area / page_area < 0.82:
+                            slide.shapes.add_picture(
+                                io.BytesIO(block['image']),
+                                int(x0 * sx), int(y0 * sy),
+                                width=max(1, int((x1-x0) * sx)),
+                                height=max(1, int((y1-y0) * sy)),
+                            )
+                if not has_text:
+                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+                    from PIL import Image
+                    image = Image.frombytes('RGB', [pix.width, pix.height], pix.samples)
+                    data = pytesseract.image_to_data(
+                        image, lang=lang, config='--psm 3',
+                        output_type=TesseractOutput.DICT, timeout=180
+                    )
+                    px = page.rect.width / image.width
+                    py = page.rect.height / image.height
+                    for i, word in enumerate(data.get('text', [])):
+                        word = (word or '').strip()
+                        try:
+                            confidence = float(data['conf'][i])
+                        except Exception:
+                            confidence = -1
+                        if not word or confidence < 20:
+                            continue
+                        left, top = data['left'][i], data['top'][i]
+                        width, height = data['width'][i], data['height'][i]
+                        shape = slide.shapes.add_textbox(
+                            int(left * px * sx), int(top * py * sy),
+                            max(1, int(width * px * sx * 1.15)),
+                            max(1, int(height * py * sy * 1.4)),
+                        )
+                        frame = shape.text_frame
+                        frame.clear()
+                        frame.margin_left = frame.margin_right = 0
+                        frame.margin_top = frame.margin_bottom = 0
+                        run = frame.paragraphs[0].add_run()
+                        run.text = word
+                        run.font.size = Pt(max(6, height * py * 0.8))
+        finally:
+            pdf.close()
+        if not deck.slides:
+            raise ValueError('This PDF contains no pages.')
         deck.save(output)
     elif slug in {'ocr-pdf', 'image-to-text'}:
         import pytesseract
