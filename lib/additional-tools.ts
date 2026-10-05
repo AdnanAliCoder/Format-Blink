@@ -11,7 +11,7 @@ export const additionalTools: Tool[] = [
   tool('file','pdf-to-word','PDF to Word','.pdf','docx','Convert PDF text, images and tables into an editable Word document.',{...remote,note:'Automatic OCR is used when scanned pages are detected. Text stays editable; full PDF pages are not inserted as screenshots. Complex layouts can still need small adjustments.'}),
   tool('file','word-to-pdf','Word to PDF','.doc,.docx,.odt','pdf','Render Word documents as PDF.',remote),
   tool('file','ocr-pdf','OCR PDF','.pdf','pdf','Recognize scanned text and create a searchable PDF.',remote),
-  tool('file','pdf-to-excel','PDF to Excel','.pdf','xlsx','Extract detected PDF tables into Excel worksheets.',{...remote,note:'Works with text-based tables. Scans need OCR first; review extracted rows and columns.'}),
+  tool('file','pdf-to-excel','PDF to Excel','.pdf','xlsx','Extract PDF tables into Excel worksheets.',{...remote,note:'Text-based tables are extracted directly. Scanned pages automatically use OCR and visual row/column grouping; review complex tables after conversion.'}),
   tool('file','excel-to-pdf','Excel to PDF','.xls,.xlsx,.ods','pdf','Render spreadsheet print areas as PDF.',remote),
   tool('file','pdf-to-powerpoint','PDF to PowerPoint','.pdf','pptx','Rebuild PDF pages as editable PowerPoint slides.',{...remote,note:'Text and embedded images are recreated as slide objects instead of full-page screenshots. Scanned pages use automatic OCR; complex vector artwork may need adjustment.'}),
   tool('file','powerpoint-to-pdf','PowerPoint to PDF','.ppt,.pptx,.odp','pdf','Render presentation slides as PDF.',remote),
