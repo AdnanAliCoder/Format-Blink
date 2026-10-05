@@ -1,5 +1,6 @@
 import {defaultConfig,mergeConfig,type Config} from './config';
 import {rest} from './supabase';
+import {resolveToolsProcessor} from './tools-processor';
 
 function validProcessor(value:string|undefined){
   const endpoint=value?.trim();if(!endpoint)return '';
@@ -8,7 +9,7 @@ function validProcessor(value:string|undefined){
 }
 function withProcessors(config:Config):Config{
   const clip=config.processorUrl||validProcessor(process.env.CLIP_STUDIO_PROCESSOR_URL);
-  const tools=config.toolsProcessorUrl||validProcessor(process.env.FORMAT_BLINK_TOOLS_PROCESSOR_URL)||validProcessor(process.env.TOOLS_PROCESSOR_URL);
+  const tools=resolveToolsProcessor(process.env.FORMAT_BLINK_TOOLS_PROCESSOR_URL,process.env.TOOLS_PROCESSOR_URL,config.toolsProcessorUrl);
   return clip===config.processorUrl&&tools===config.toolsProcessorUrl?config:{...config,processorUrl:clip,toolsProcessorUrl:tools};
 }
 

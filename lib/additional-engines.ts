@@ -1,26 +1,20 @@
 import type {Tool} from './catalog';
 import {canvasBlob, decodeImage, pageSelection, registerMediaEngine, type Settings, type Output} from './engines';
 import {runVideoTool} from './video-tools';
+import {resolveToolsProcessor,checkToolsProcessor} from './tools-processor';
 type Progress = (n:number, message:string)=>void;
 const types:Record<string,string>={pdf:'application/pdf',png:'image/png',jpg:'image/jpeg',txt:'text/plain',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation'};
 export function output(data:Blob|Uint8Array|string,ext:string,name:string,detail?:string):Output{return {blob:data instanceof Blob?data:new Blob([typeof data==='string'?data:Uint8Array.from(data)],{type:types[ext]||'application/octet-stream'}),name:`${name}.${ext}`,detail};}
 export function newCanvas(width:number,height:number){if(!Number.isFinite(width)||!Number.isFinite(height)||width<1||height<1||width>16000||height>16000||width*height>25000000)throw new Error('Output must be within 16,000 pixels per side and 25 megapixels.');const c=document.createElement('canvas');c.width=Math.ceil(width);c.height=Math.ceil(height);return c;}
 async function remote(t:Tool,file:File,s:Settings,p:Progress,signal:AbortSignal){
-  let processor=(s.processorUrl||'http://127.0.0.1:8766').replace(/\/$/,'');
-  const base=new URL(processor);if(base.protocol!=='https:'&&!['localhost','127.0.0.1'].includes(base.hostname))throw new Error('The processor must use HTTPS.');
-  const requiredCapability=t.slug==='pdf-to-word'?'pdf-word-auto-ocr-v3':t.slug==='pdf-to-excel'?'pdf-excel-auto-ocr-v2':t.slug==='pdf-to-powerpoint'?'pdf-powerpoint-editable-v2':'';
-  if(requiredCapability){
-    const supports=async(url:string)=>{try{const r=await fetch(url+'/health',{signal:AbortSignal.any([signal,AbortSignal.timeout(10000)]),cache:'no-store'});const h=await r.json();return r.ok&&h.capabilities?.includes(requiredCapability);}catch{return false;}};
-    if(!await supports(processor)){
-      if(s.processorUrl)throw new Error('Format Blink cloud processor is running an older release. The Modal tools service must be redeployed; users do not need to install anything.');
-      throw new Error('The local Format Blink Tools Processor is outdated. Run the latest Tools Processor setup once to update it.');
-    }
-  }
+  const processor=resolveToolsProcessor(s.processorUrl);
+  p(5,'Connecting to the cloud processor… The first request may take a moment.');
+  await checkToolsProcessor(processor,t.slug,signal);
   const form=new FormData();form.append('file',file);form.append('settings',JSON.stringify({password:s.password,language:t.slug==='pdf-to-word'?'eng+urd+hin':s.language}));
-  p(15,s.processorUrl?'Uploading to the connected processing service…':'Processing on your computer…');
+  p(15,'Uploading to the connected processing service…');
   let response:Response;
   try{response=await fetch(`${processor}/api/tools/${t.slug}`,{method:'POST',body:form,signal});}
-  catch{throw new Error(s.processorUrl?'Format Blink cloud processor could not be reached. Please retry shortly.':'Format Blink Tools Processor is not running. Start the local processor, then try again.');}
+  catch{signal.throwIfAborted();throw new Error('Format Blink cloud processor could not be reached. Please retry shortly. No installation is needed.');}
   if(!response.ok){const error=await response.json().catch(()=>null);throw new Error(typeof error?.detail==='string'?error.detail:`Processing service returned ${response.status}. Please retry later.`);}
   const expected=types[t.output];if(expected&&!response.headers.get('content-type')?.includes(expected))throw new Error('The processor returned an unexpected file type.');
   const blob=await response.blob();if(!blob.size)throw new Error('The processor returned an empty file.');
@@ -47,3 +41,4 @@ async function pdfTool(t:Tool,files:File[],s:Settings,p:Progress,signal:AbortSig
 }
 function validateRect(s:Settings,w:number,h:number){if(![s.x,s.y,s.width,s.height].every(Number.isFinite)||s.x<0||s.y<0||s.width<=0||s.height<=0||s.x+s.width>w||s.y+s.height>h)throw new Error(`Rectangle must fit inside ${Math.round(w)} × ${Math.round(h)}. Coordinates start at the top-left.`);}
 export async function processAdditional(t:Tool,files:File[],s:Settings,p:Progress,signal:AbortSignal):Promise<Output[]>{if(!files.length)throw new Error('Choose a file first.');if(t.processing==='server')return remote(t,files[0],s,p,signal);if(t.category==='video'||t.slug==='gif-compressor')return runVideoTool(t,files,s,p,signal,registerMediaEngine);return t.category==='image'?imageTool(t,files[0],s,p,signal):pdfTool(t,files,s,p,signal);}
+
