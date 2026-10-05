@@ -242,6 +242,51 @@ def ocr_word_fallback(source, output, language):
         raise ValueError('No readable text could be recognized from this PDF.')
     doc.save(output)
 
+def ocr_rows_from_image(image, language):
+    import statistics
+    import pytesseract
+    from pytesseract import Output as TesseractOutput
+    data = pytesseract.image_to_data(
+        image, lang=ocr_language(language), config='--psm 6',
+        output_type=TesseractOutput.DICT, timeout=180
+    )
+    groups = {}
+    count = len(data.get('text', []))
+    for i in range(count):
+        word = (data['text'][i] or '').strip()
+        try:
+            confidence = float(data['conf'][i])
+        except Exception:
+            confidence = -1
+        if not word or confidence < 20:
+            continue
+        key = (data['block_num'][i], data['par_num'][i], data['line_num'][i])
+        groups.setdefault(key, []).append({
+            'text': word,
+            'x': int(data['left'][i]),
+            'w': int(data['width'][i]),
+        })
+    rows = []
+    for words in groups.values():
+        words.sort(key=lambda item: item['x'])
+        if not words:
+            continue
+        widths = [max(1, item['w'] / max(1, len(item['text']))) for item in words]
+        char_width = statistics.median(widths) if widths else 8
+        cells, current, right = [], [], None
+        for item in words:
+            gap = 0 if right is None else item['x'] - right
+            if current and gap > max(28, char_width * 3.5):
+                cells.append(' '.join(current))
+                current = []
+            current.append(item['text'])
+            right = item['x'] + item['w']
+        if current:
+            cells.append(' '.join(current))
+        if any(cell.strip() for cell in cells):
+            rows.append(cells)
+    return rows
+
 def convert(slug, source, settings, directory):
     if slug not in EXTENSIONS or source.suffix.lower() not in EXTENSIONS[slug][0]:
         raise ValueError('Unsupported input format.')
@@ -301,32 +346,56 @@ def convert(slug, source, settings, directory):
             ocr_word_fallback(source, output, language)
     elif slug == 'pdf-to-excel':
         import pdfplumber
+        import pypdfium2 as pdfium
         from openpyxl import Workbook
-        pdf_reader(source)
+        from openpyxl.styles import Alignment
+        from openpyxl.utils import get_column_letter
+        reader = pdf_reader(source)
         book = Workbook()
         book.remove(book.active)
-        with pdfplumber.open(source) as pdf:
-            for i, page in enumerate(pdf.pages):
-                for j, table in enumerate(page.extract_tables()):
-                    sheet = book.create_sheet(f'Page {i+1} table {j+1}')
-                    for row in table:
-                        sheet.append(row)
-                    # User-supplied table text is always text, never spreadsheet formulas.
-                    for row in sheet:
-                        for cell in row:
-                            if isinstance(cell.value, str):
-                                cell.data_type = 's'
-                    from openpyxl.styles import Alignment
-                    from openpyxl.utils import get_column_letter
+        pdfium_doc = pdfium.PdfDocument(str(source))
+        try:
+            with pdfplumber.open(source) as pdf:
+                for i, page in enumerate(pdf.pages):
+                    tables = page.extract_tables()
+                    if tables:
+                        for j, table in enumerate(tables):
+                            sheet = book.create_sheet(f'Page {i+1} table {j+1}')
+                            for row in table:
+                                sheet.append(row)
+                    else:
+                        # Automatic scanned-page fallback. OCR words are grouped by
+                        # visual lines and large horizontal gaps become Excel cells.
+                        page_text = (reader.pages[i].extract_text() or '').strip()
+                        if len(page_text) < 12:
+                            rendered = pdfium_doc[i]
+                            bitmap = rendered.render(scale=2.0)
+                            image = bitmap.to_pil().convert('RGB')
+                            try:
+                                rows = ocr_rows_from_image(image, language)
+                            finally:
+                                bitmap.close()
+                                rendered.close()
+                            if rows:
+                                sheet = book.create_sheet(f'Page {i+1} OCR')
+                                for row in rows:
+                                    sheet.append(row)
+            for sheet in book.worksheets:
+                # User-supplied table text is always text, never spreadsheet formulas.
+                for row in sheet:
+                    for cell in row:
+                        if isinstance(cell.value, str):
+                            cell.data_type = 's'
+                        cell.alignment = Alignment(wrap_text=True, vertical='top')
+                if sheet.max_row > 1:
                     sheet.freeze_panes = 'A2'
-                    for row in sheet:
-                        for cell in row:
-                            cell.alignment = Alignment(wrap_text=True, vertical='top')
-                    for column in sheet.columns:
-                        length = max((len(str(c.value or '')) for c in column), default=10)
-                        sheet.column_dimensions[get_column_letter(column[0].column)].width = min(60, max(12, length+2))
+                for column in sheet.columns:
+                    length = max((len(str(c.value or '')) for c in column), default=10)
+                    sheet.column_dimensions[get_column_letter(column[0].column)].width = min(60, max(12, length+2))
+        finally:
+            pdfium_doc.close()
         if not book.sheetnames:
-            raise ValueError('No text-based tables detected. OCR scanned pages first.')
+            raise ValueError('No table or readable tabular text could be detected in this PDF.')
         book.save(output)
     elif slug == 'pdf-to-powerpoint':
         # Rebuild text and embedded images as editable slide objects instead of
