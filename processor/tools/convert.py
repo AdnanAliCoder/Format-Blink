@@ -83,50 +83,28 @@ def convert(slug, source, settings, directory):
         with output.open('wb') as handle:
             writer.write(handle)
     elif slug == 'pdf-to-word':
-        pdf_reader(source)
-        mode = settings.get('documentMode', 'editable')
-        if mode == 'appearance':
-            # One full-page image per section retains scans, diagrams and typography.
-            from docx import Document
-            from docx.shared import Pt
-            from docx.enum.section import WD_SECTION_START
-            import pypdfium2 as pdfium
-            doc = Document()
-            pdf = pdfium.PdfDocument(str(source))
-            try:
-                for i in range(len(pdf)):
-                    page = pdf[i]
-                    w, h = page.get_size()
-                    section = doc.sections[0] if i == 0 else doc.add_section(WD_SECTION_START.NEW_PAGE)
-                    section.page_width, section.page_height = Pt(w), Pt(h)
-                    section.top_margin = section.bottom_margin = Pt(0)
-                    section.left_margin = section.right_margin = Pt(0)
-                    section.header_distance = section.footer_distance = Pt(0)
-                    bitmap = page.render(scale=2)
-                    data = io.BytesIO()
-                    bitmap.to_pil().save(data, 'PNG')
-                    data.seek(0)
-                    para = doc.add_paragraph()
-                    para.paragraph_format.space_before = Pt(0)
-                    para.paragraph_format.space_after = Pt(0)
-                    para.paragraph_format.line_spacing = 1
-                    para.add_run().add_picture(data, width=Pt(w), height=Pt(h-1))
-                    bitmap.close()
-                    page.close()
-            finally:
-                pdf.close()
-            doc.save(output)
-        elif mode == 'editable':
-            from pdf2docx import Converter
-            if not any((page.extract_text() or '').strip() for page in pdf_reader(source).pages):
-                raise ValueError('This PDF is scanned. Choose Preserve appearance, or run OCR PDF before editable conversion.')
-            converter = Converter(str(source))
-            try:
-                converter.convert(str(output), multi_processing=False)
-            finally:
-                converter.close()
-        else:
-            raise ValueError('Choose editable or appearance conversion.')
+        # PDF-to-Word is an editable document conversion. Never rasterize
+        # complete PDF pages into Word pictures.
+        reader = pdf_reader(source)
+        if not any((page.extract_text() or '').strip() for page in reader.pages):
+            raise ValueError('This PDF has no selectable text. Run OCR PDF first, then convert the OCR result to Word.')
+        from pdf2docx import Converter
+        converter = Converter(str(source))
+        try:
+            converter.convert(str(output), multi_processing=False)
+        except Exception as error:
+            raise ValueError('Editable PDF-to-Word conversion failed. Try OCR PDF first if the source is scanned or image-only.') from error
+        finally:
+            converter.close()
+        # Reject image-only DOCX output if a converter regression occurs.
+        import zipfile
+        try:
+            with zipfile.ZipFile(output) as package:
+                document_xml = package.read('word/document.xml')
+        except Exception as error:
+            raise ValueError('The Word document could not be validated.') from error
+        if b'<w:t' not in document_xml:
+            raise ValueError('The converter did not produce editable Word text. Run OCR PDF first for scanned pages.')
     elif slug == 'pdf-to-excel':
         import pdfplumber
         from openpyxl import Workbook
