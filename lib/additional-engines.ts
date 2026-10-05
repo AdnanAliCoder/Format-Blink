@@ -8,15 +8,16 @@ export function newCanvas(width:number,height:number){if(!Number.isFinite(width)
 async function remote(t:Tool,file:File,s:Settings,p:Progress,signal:AbortSignal){
   let processor=(s.processorUrl||'http://127.0.0.1:8766').replace(/\/$/,'');
   const base=new URL(processor);if(base.protocol!=='https:'&&!['localhost','127.0.0.1'].includes(base.hostname))throw new Error('The processor must use HTTPS.');
-  if(t.slug==='pdf-to-word'){
-    const supportsLayout=async(url:string)=>{try{const r=await fetch(url+'/health',{signal:AbortSignal.any([signal,AbortSignal.timeout(10000)]),cache:'no-store'});const h=await r.json();return r.ok&&(h.capabilities?.includes('pdf-word-editable-v2')||h.capabilities?.includes('pdf-word-layout-v1'));}catch{return false;}};
-    if(!await supportsLayout(processor)){
+  const requiredCapability=t.slug==='pdf-to-word'?'pdf-word-auto-ocr-v3':t.slug==='pdf-to-powerpoint'?'pdf-powerpoint-editable-v2':'';
+  if(requiredCapability){
+    const supports=async(url:string)=>{try{const r=await fetch(url+'/health',{signal:AbortSignal.any([signal,AbortSignal.timeout(10000)]),cache:'no-store'});const h=await r.json();return r.ok&&h.capabilities?.includes(requiredCapability);}catch{return false;}};
+    if(!await supports(processor)){
       const local='http://127.0.0.1:8766';
-      if(processor!==local&&await supportsLayout(local))processor=local;
-      else throw new Error('The connected processor needs the editable Word update. Update the Tools Processor on your PC using /FormatBlink-Tools-Processor-Setup.bat, or deploy the latest Modal processor.');
+      if(processor!==local&&await supports(local))processor=local;
+      else throw new Error('The connected processor is outdated. Install/run the latest Format Blink Tools Processor or deploy the latest tools service.');
     }
   }
-  const form=new FormData();form.append('file',file);form.append('settings',JSON.stringify({password:s.password,language:s.language}));
+  const form=new FormData();form.append('file',file);form.append('settings',JSON.stringify({password:s.password,language:t.slug==='pdf-to-word'?'eng+urd+hin':s.language}));
   p(15,s.processorUrl?'Uploading to the connected processing service…':'Processing on your computer…');
   let response:Response;
   try{response=await fetch(`${processor}/api/tools/${t.slug}`,{method:'POST',body:form,signal});}
