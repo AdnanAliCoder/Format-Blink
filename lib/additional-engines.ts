@@ -8,7 +8,7 @@ export function newCanvas(width:number,height:number){if(!Number.isFinite(width)
 async function remote(t:Tool,file:File,s:Settings,p:Progress,signal:AbortSignal){
   let processor=(s.processorUrl||'http://127.0.0.1:8766').replace(/\/$/,'');
   const base=new URL(processor);if(base.protocol!=='https:'&&!['localhost','127.0.0.1'].includes(base.hostname))throw new Error('The processor must use HTTPS.');
-  const requiredCapability=t.slug==='pdf-to-word'?'pdf-word-auto-ocr-v3':t.slug==='pdf-to-powerpoint'?'pdf-powerpoint-editable-v2':'';
+  const requiredCapability=t.slug==='pdf-to-word'?'pdf-word-auto-ocr-v3':t.slug==='pdf-to-excel'?'pdf-excel-auto-ocr-v2':t.slug==='pdf-to-powerpoint'?'pdf-powerpoint-editable-v2':'';
   if(requiredCapability){
     const supports=async(url:string)=>{try{const r=await fetch(url+'/health',{signal:AbortSignal.any([signal,AbortSignal.timeout(10000)]),cache:'no-store'});const h=await r.json();return r.ok&&h.capabilities?.includes(requiredCapability);}catch{return false;}};
     if(!await supports(processor)){
