@@ -14,7 +14,7 @@ c=Canvas(str(root/'sample.pdf'),pagesize=(400,500));c.drawString(40,450,'Format 
 for x in [40,150,260]: c.line(x,250,x,350)
 for y in [250,300,350]: c.line(40,y,260,y)
 c.drawString(50,320,'Name');c.drawString(160,320,'Score');c.drawString(50,270,'Adnan');c.drawString(160,270,'93');c.showPage();c.drawString(40,450,'Second page');c.save()
-im=Image.new('RGB',(1000,300),'white');d=ImageDraw.Draw(im);d.text((30,70),'FORMAT BLINK TEST 123',font=ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',48),fill='black');im.save(root/'text.png')
+im=Image.new('RGB',(1000,300),'white');d=ImageDraw.Draw(im);d.text((30,70),'FORMAT BLINK TEST 123',font=ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',48),fill='black');d.rectangle((700,50,930,250),fill=(20,130,190));im.save(root/'text.png')
 c=Canvas(str(root/'scanned.pdf'),pagesize=(1000,300));c.drawImage(str(root/'text.png'),0,0,width=1000,height=300);c.save()
 doc=Document();doc.add_paragraph('Format Blink Word fixture');doc.save(root/'sample.docx')
 w=Workbook();w.active.append(['Name','Score']);w.active.append(['Adnan',93]);w.save(root/'sample.xlsx')
@@ -46,6 +46,7 @@ with tempfile.TemporaryDirectory() as tmp:
  scanned_doc=Document(out)
  scanned_text='\n'.join(p.text for p in scanned_doc.paragraphs)
  assert 'FORMAT' in scanned_text and '123' in scanned_text
+ assert len(scanned_doc.inline_shapes)>=1
  results['pdf-to-word-scanned-auto-ocr']='PASS'
 with tempfile.TemporaryDirectory() as tmp:
  out=convert('pdf-to-powerpoint',root/'sample.pdf',{'language':'eng'},Path(tmp))
