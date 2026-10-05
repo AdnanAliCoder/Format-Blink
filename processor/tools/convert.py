@@ -442,11 +442,26 @@ def convert(slug, source, settings, directory):
                 raise ValueError('No text recognized. Try a clearer image or another language.')
             output.write_text(text, encoding='utf-8')
         else:
+            import pypdfium2 as pdfium
             from pypdf import PdfWriter, PdfReader
+            reader = pdf_reader(source)
             writer = PdfWriter()
-            for image in render(source, directory):
-                data = pytesseract.image_to_pdf_or_hocr(str(image), extension='pdf', lang=active_language, timeout=120)
-                writer.append(PdfReader(io.BytesIO(data)))
+            pdf = pdfium.PdfDocument(str(source))
+            try:
+                for index, original in enumerate(reader.pages):
+                    page = pdf[index]
+                    bitmap = page.render(scale=2.0)
+                    image = bitmap.to_pil().convert('RGB')
+                    try:
+                        data = pytesseract.image_to_pdf_or_hocr(image, extension='pdf', lang=active_language, config='--dpi 144 --psm 3', timeout=180)
+                    finally:
+                        bitmap.close()
+                        page.close()
+                    recognized = PdfReader(io.BytesIO(data)).pages[0]
+                    recognized.scale_to(float(original.mediabox.width), float(original.mediabox.height))
+                    writer.add_page(recognized)
+            finally:
+                pdf.close()
             with output.open('wb') as handle:
                 writer.write(handle)
     elif slug == 'html-to-pdf':
