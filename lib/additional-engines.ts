@@ -11,12 +11,13 @@ async function remote(t:Tool,file:File,s:Settings,p:Progress,signal:AbortSignal)
   p(5,'Connecting to the cloud processor… The first request may take a moment.');
   await checkToolsProcessor(processor,t.slug,signal);
   const form=new FormData();form.append('file',file);form.append('settings',JSON.stringify({password:s.password,language:t.slug==='pdf-to-word'?'eng+urd+hin':s.language}));
-  p(15,'Uploading to the connected processing service…');
+  p(15,'Uploading and converting your file… Keep this tab open.');
   let response:Response;
   try{response=await fetch(`${processor}/api/tools/${t.slug}`,{method:'POST',body:form,signal});}
   catch{signal.throwIfAborted();throw new Error('Format Blink cloud processor could not be reached. Please retry shortly. No installation is needed.');}
   if(!response.ok){const error=await response.json().catch(()=>null);throw new Error(typeof error?.detail==='string'?error.detail:`Processing service returned ${response.status}. Please retry later.`);}
   const expected=types[t.output];if(expected&&!response.headers.get('content-type')?.includes(expected))throw new Error('The processor returned an unexpected file type.');
+  p(95,'Receiving your converted file…');
   const blob=await response.blob();if(!blob.size)throw new Error('The processor returned an empty file.');
   return [output(blob,t.output,t.slug)];
 }

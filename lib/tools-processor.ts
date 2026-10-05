@@ -19,7 +19,7 @@ export function resolveToolsProcessor(...values: (string | undefined)[]): string
 
 export function requiredToolCapability(slug: string): string {
   return ({
-    'pdf-to-word': 'pdf-word-auto-ocr-v3',
+    'pdf-to-word': 'pdf-word-clean-layout-v4',
     'pdf-to-excel': 'pdf-excel-auto-ocr-v2',
     'pdf-to-powerpoint': 'pdf-powerpoint-editable-v2',
   } as Record<string, string>)[slug] || '';

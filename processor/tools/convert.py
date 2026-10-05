@@ -114,7 +114,7 @@ def rebuild_ocr_page(image, ocr_pdf, width, height):
                 mask[y0:y1, x0:x1] = 0
             kernel = np.ones((5, 5), np.uint8)
             mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
-            count, _, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
+            count, labels, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
             page_area = image.width * image.height
             minimum = max(1800, int(page_area * 0.0015))
             for index in range(1, count):
@@ -122,9 +122,14 @@ def rebuild_ocr_page(image, ocr_pdf, width, height):
                 box_area = w * h
                 if area < minimum or w < 36 or h < 36 or not box_area:
                     continue
-                if box_area > page_area * 0.82 or area / box_area < 0.07:
+                if box_area > page_area * 0.50 or area / box_area < 0.07:
                     continue
-                crop = image.crop((x, y, x+w, y+h))
+                # Crop only this graphic component, never the original rectangle
+                # containing text that was removed from the detection mask.
+                from PIL import Image
+                crop = image.crop((x, y, x+w, y+h)).convert('RGBA')
+                alpha = ((labels[y:y+h, x:x+w] == index) * 255).astype('uint8')
+                crop.putalpha(Image.fromarray(alpha))
                 buffer = io.BytesIO()
                 crop.save(buffer, 'PNG')
                 rect = fitz.Rect(
@@ -142,12 +147,29 @@ def rebuild_ocr_page(image, ocr_pdf, width, height):
         source.close()
         rebuilt.close()
 
+def page_needs_word_ocr(page):
+    """Recognize scans even when a previous OCR engine already added hidden text."""
+    import fitz
+    text = page.get_text().strip()
+    if len(''.join(text.split())) < 8:
+        return True
+    if any(span.get('type') == 3 for span in page.get_texttrace()):
+        return True
+    area = max(1, page.rect.get_area())
+    words = page.get_text('words')
+    for info in page.get_image_info():
+        rect = fitz.Rect(info['bbox']) & page.rect
+        if rect.get_area() / area >= 0.35:
+            # A scan with an existing text layer must be rebuilt as well.
+            overlaps = sum(rect.intersects(fitz.Rect(word[:4])) for word in words)
+            if overlaps >= 3 or rect.get_area() / area >= 0.75:
+                return True
+    return False
+
 def prepare_word_source(source, reader, directory, language):
-    import re
-    scanned = [
-        index for index, page in enumerate(reader.pages)
-        if len(re.sub(r'\s+', '', page.extract_text() or '')) < 8
-    ]
+    import fitz
+    with fitz.open(str(source)) as document:
+        scanned = [index for index, page in enumerate(document) if page_needs_word_ocr(page)]
     if not scanned:
         return source, False
     import pypdfium2 as pdfium
@@ -200,14 +222,23 @@ def strip_full_page_word_images(output):
     max_width = max(int(section.page_width) for section in doc.sections)
     max_height = max(int(section.page_height) for section in doc.sections)
     removed = 0
-    for shape in list(doc.inline_shapes):
-        if int(shape.width) >= int(max_width * 0.82) and int(shape.height) >= int(max_height * 0.55):
-            parent = shape._inline.getparent()
-            if parent is not None:
-                parent.remove(shape._inline)
+    # Includes floating anchors as well as inline images, in all Word XML parts.
+    from docx.oxml.ns import qn
+    for part in doc.part.package.parts:
+        root = getattr(part, 'element', None)
+        if root is None:
+            continue
+        for drawing in list(root.iter(qn('w:drawing'))):
+            extents = list(drawing.iter(qn('wp:extent')))
+            if any(int(extent.get('cx', 0)) >= max_width * 0.82 and
+                   int(extent.get('cy', 0)) >= max_height * 0.55 for extent in extents):
+                drawing.getparent().remove(drawing)
                 removed += 1
-    if removed:
-        doc.save(output)
+    # Generated documents must not enforce editing restrictions or read-only mode.
+    for tag in ('documentProtection', 'writeProtection'):
+        for element in list(doc.settings.element.iter(qn('w:' + tag))):
+            element.getparent().remove(element)
+    doc.save(output)
     return removed
 
 def ocr_word_fallback(source, output, language):
@@ -327,23 +358,16 @@ def convert(slug, source, settings, directory):
         converter = Converter(str(word_source))
         try:
             converter.convert(str(output), multi_processing=False)
-        except Exception:
-            if used_ocr:
-                ocr_word_fallback(source, output, language)
-            else:
-                raise ValueError('Editable PDF-to-Word conversion failed for this document.')
+        except Exception as error:
+            raise ValueError('Editable layout conversion failed. Try a clearer PDF or a smaller page range.') from error
         finally:
             converter.close()
-        if used_ocr:
-            strip_full_page_word_images(output)
-        import zipfile
-        try:
-            with zipfile.ZipFile(output) as package:
-                document_xml = package.read('word/document.xml')
-        except Exception as error:
-            raise ValueError('The Word document could not be validated.') from error
-        if b'<w:t' not in document_xml:
-            ocr_word_fallback(source, output, language)
+        strip_full_page_word_images(output)
+        from docx import Document
+        from docx.oxml.ns import qn
+        document = Document(output)
+        if not any((node.text or '').strip() for node in document.element.iter(qn('w:t'))):
+            raise ValueError('No editable text was recognized. Try a clearer PDF.')
     elif slug == 'pdf-to-excel':
         import pdfplumber
         import pypdfium2 as pdfium

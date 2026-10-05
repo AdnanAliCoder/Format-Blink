@@ -13,7 +13,7 @@ test('deployment endpoint takes priority and pasted health URLs normalize to the
   assert.equal(resolveToolsProcessor('', 'https://admin.example/api/tools/pdf-to-word'), 'https://admin.example');
 });
 
-const healthy = {ok:true,tools:['pdf-to-word'],capabilities:['pdf-word-auto-ocr-v3']};
+const healthy = {ok:true,tools:['pdf-to-word'],capabilities:['pdf-word-clean-layout-v4']};
 test('current editable OCR capability succeeds', async t => {
   t.mock.method(globalThis, 'fetch', async (url, options) => {
     assert.equal(url, DEFAULT_TOOLS_PROCESSOR_URL + '/health');
