@@ -49,7 +49,7 @@ class UploadGuard:
 app.add_middleware(UploadGuard)
 
 @app.get('/health')
-def health(): return {'ok': True, 'version': '2026-10-05', 'capabilities': ['pdf-word-layout-v1','html-layout-v1'], 'mode': 'local' if LOCAL_MODE else 'server', 'tools': sorted(EXTENSIONS)}
+def health(): return {'ok': True, 'version': '2026-10-05.2', 'capabilities': ['pdf-word-editable-v2','html-layout-v1'], 'mode': 'local' if LOCAL_MODE else 'server', 'tools': sorted(EXTENSIONS)}
 
 @app.post('/api/tools/{slug}')
 async def process(slug: str, file: UploadFile = File(...), settings: str = Form('{}')):
