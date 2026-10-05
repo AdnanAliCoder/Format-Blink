@@ -9,14 +9,14 @@ async function remote(t:Tool,file:File,s:Settings,p:Progress,signal:AbortSignal)
   let processor=(s.processorUrl||'http://127.0.0.1:8766').replace(/\/$/,'');
   const base=new URL(processor);if(base.protocol!=='https:'&&!['localhost','127.0.0.1'].includes(base.hostname))throw new Error('The processor must use HTTPS.');
   if(t.slug==='pdf-to-word'){
-    const supportsLayout=async(url:string)=>{try{const r=await fetch(url+'/health',{signal:AbortSignal.any([signal,AbortSignal.timeout(10000)]),cache:'no-store'});const h=await r.json();return r.ok&&h.capabilities?.includes('pdf-word-layout-v1');}catch{return false;}};
+    const supportsLayout=async(url:string)=>{try{const r=await fetch(url+'/health',{signal:AbortSignal.any([signal,AbortSignal.timeout(10000)]),cache:'no-store'});const h=await r.json();return r.ok&&h.capabilities?.includes('pdf-word-editable-v2');}catch{return false;}};
     if(!await supportsLayout(processor)){
       const local='http://127.0.0.1:8766';
       if(processor!==local&&await supportsLayout(local))processor=local;
-      else throw new Error('The connected processor needs the layout update. Update the Tools Processor on your PC using /FormatBlink-Tools-Processor-Setup.bat, or ask the site administrator to deploy the latest Modal processor.');
+      else throw new Error('The connected processor needs the editable Word update. Update the Tools Processor on your PC using /FormatBlink-Tools-Processor-Setup.bat, or deploy the latest Modal processor.');
     }
   }
-  const form=new FormData();form.append('file',file);form.append('settings',JSON.stringify({password:s.password,language:s.language,documentMode:s.documentMode}));
+  const form=new FormData();form.append('file',file);form.append('settings',JSON.stringify({password:s.password,language:s.language}));
   p(15,s.processorUrl?'Uploading to the connected processing service…':'Processing on your computer…');
   let response:Response;
   try{response=await fetch(`${processor}/api/tools/${t.slug}`,{method:'POST',body:form,signal});}
