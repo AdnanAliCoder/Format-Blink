@@ -6,14 +6,14 @@ function tool(category: Tool['category'], slug: string, name: string, accept: st
 }
 const remote = {processing: 'server' as const};
 export const additionalTools: Tool[] = [
-  tool('file','compress-pdf','Compress PDF','.pdf','pdf','Reduce scanned PDF size with adjustable image quality.',{note:'Creates image-only pages. Searchable text, links, forms and signatures are flattened. Already compact files may not shrink.'}),
+  tool('file','compress-pdf','Compress PDF','.pdf','pdf','Optimize PDF structure without turning pages into images.',{note:'Preserves searchable text, links and vector content. Already optimized or image-heavy PDFs may not become much smaller.'}),
   tool('file','pdf-editor','PDF Editor','.pdf','pdf','Add text, highlights and rectangles to selected PDF pages.',{note:'Adds annotations over the page; does not rewrite existing text. Use Redact PDF to remove sensitive content.'}),
-  tool('file','pdf-to-word','PDF to Word','.pdf','docx','Convert PDF text, images and tables into an editable Word document.',{...remote,note:'Text stays editable and original PDF images/tables are reconstructed as Word content. Full PDF pages are never inserted as screenshots. For scanned or image-only PDFs, run OCR PDF first.'}),
+  tool('file','pdf-to-word','PDF to Word','.pdf','docx','Convert PDF text, images and tables into an editable Word document.',{...remote,note:'Automatic OCR is used when scanned pages are detected. Text stays editable; full PDF pages are not inserted as screenshots. Complex layouts can still need small adjustments.'}),
   tool('file','word-to-pdf','Word to PDF','.doc,.docx,.odt','pdf','Render Word documents as PDF.',remote),
   tool('file','ocr-pdf','OCR PDF','.pdf','pdf','Recognize scanned text and create a searchable PDF.',remote),
   tool('file','pdf-to-excel','PDF to Excel','.pdf','xlsx','Extract detected PDF tables into Excel worksheets.',{...remote,note:'Works with text-based tables. Scans need OCR first; review extracted rows and columns.'}),
   tool('file','excel-to-pdf','Excel to PDF','.xls,.xlsx,.ods','pdf','Render spreadsheet print areas as PDF.',remote),
-  tool('file','pdf-to-powerpoint','PDF to PowerPoint','.pdf','pptx','Create one slide per PDF page.',{...remote,note:'Pages become slide images, preserving appearance. Text within images is not editable.'}),
+  tool('file','pdf-to-powerpoint','PDF to PowerPoint','.pdf','pptx','Rebuild PDF pages as editable PowerPoint slides.',{...remote,note:'Text and embedded images are recreated as slide objects instead of full-page screenshots. Scanned pages use automatic OCR; complex vector artwork may need adjustment.'}),
   tool('file','powerpoint-to-pdf','PowerPoint to PDF','.ppt,.pptx,.odp','pdf','Render presentation slides as PDF.',remote),
   tool('file','sign-pdf','Sign PDF / eSign PDF','.pdf','pdf','Place a typed signature on selected pages.',{note:'A visible typed signature, not a certificate-based digital signature. Existing digital signatures may become invalid.'}),
   tool('file','protect-pdf','Protect PDF','.pdf','pdf','Encrypt a PDF with an opening password.',remote),
