@@ -77,7 +77,6 @@ mkv:{name:'MKV',description:'Matroska can contain multiple video, audio and subt
 avi:{name:'AVI',description:'AVI is an older media container used in legacy workflows.',best:'Older recordings that need a modern output.',limit:'Some legacy codecs cannot be decoded by the browser engine.',mime:'video/x-msvideo'},
 mp3:{name:'MP3',description:'MP3 is a widely supported lossy audio format.',best:'Spoken recordings and extracted soundtracks.',limit:'A higher bitrate cannot restore missing source detail.',mime:'audio/mpeg'}
 };
-const KEYS:Record<Category,string[]>={file:['pdf','jpg','png','webp'],image:['jpg','png','webp','heic','avif','svg','ico','gif'],video:['mp4','webm','mov','mkv','avi','mp3','gif']};
 export const formats=ALL_FORMATS;
 const ALL_GUIDES=[
  ['how-to-merge-pdf-files','How to merge PDF files','merge-pdf','Put several documents into one clean PDF.'],['how-to-split-a-pdf','How to split a PDF','split-pdf','Save individual pages from one PDF.'],['how-to-convert-images-to-pdf','How to convert images to PDF','images-to-pdf','Turn pictures into a shareable document.'],
