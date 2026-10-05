@@ -346,11 +346,12 @@ def convert(slug, source, settings, directory):
         import pytesseract
         from PIL import Image
         Image.MAX_IMAGE_PIXELS = 25_000_000
+        active_language = ocr_language(language)
         if slug == 'image-to-text':
             with Image.open(source) as im:
                 if im.width * im.height > 25_000_000:
                     raise ValueError('Use an image under 25 megapixels.')
-                text = pytesseract.image_to_string(im, lang=language, timeout=120)
+                text = pytesseract.image_to_string(im, lang=active_language, timeout=120)
             if not text.strip():
                 raise ValueError('No text recognized. Try a clearer image or another language.')
             output.write_text(text, encoding='utf-8')
@@ -358,7 +359,7 @@ def convert(slug, source, settings, directory):
             from pypdf import PdfWriter, PdfReader
             writer = PdfWriter()
             for image in render(source, directory):
-                data = pytesseract.image_to_pdf_or_hocr(str(image), extension='pdf', lang=language, timeout=120)
+                data = pytesseract.image_to_pdf_or_hocr(str(image), extension='pdf', lang=active_language, timeout=120)
                 writer.append(PdfReader(io.BytesIO(data)))
             with output.open('wb') as handle:
                 writer.write(handle)
