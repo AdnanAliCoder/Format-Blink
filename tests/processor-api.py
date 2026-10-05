@@ -7,7 +7,7 @@ from pypdf import PdfReader
 import io
 client=TestClient(app)
 origin={'origin':'http://localhost:3000'}
-assert len(client.get('/health').json()['tools'])==13
+health=client.get('/health').json();assert len(health['tools'])==13;assert 'pdf-word-auto-ocr-v3' in health['capabilities'];assert 'pdf-powerpoint-editable-v2' in health['capabilities']
 with open('/tmp/formatblink-fixtures/sample.pdf','rb') as f:
  r=client.post('/api/tools/pdf-to-word',headers=origin,files={'file':('sample.pdf',f,'application/pdf')})
  assert r.status_code==200,(r.status_code,r.text)
