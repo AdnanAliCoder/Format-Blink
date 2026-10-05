@@ -6,6 +6,7 @@ from PIL import Image, ImageChops
 root=Path(os.environ.get('RESULT_DIR','/tmp/formatblink-results'))
 def pdf(slug):return PdfReader(root/(slug+'.pdf'))
 assert len(pdf('compress-pdf').pages)==2
+assert 'SECRET 123' in (pdf('compress-pdf').pages[0].extract_text() or '')
 assert 'Added text' in pdf('pdf-editor').pages[0].extract_text()
 assert 'Adnan Ali' in pdf('sign-pdf').pages[0].extract_text()
 assert float(pdf('crop-pdf').pages[0].cropbox.width)==300
