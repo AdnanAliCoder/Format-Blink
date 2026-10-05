@@ -24,7 +24,7 @@ export function AdditionalSettings({tool,settings:s,update,file}:{tool:Tool;sett
     {slug==='loop-video'&&number('loops','Total repetitions',2,10)}
     {slug==='change-video-aspect-ratio'&&select('aspect','Output aspect ratio',['16:9','9:16','1:1','4:3'])}
     {['protect-pdf','unlock-pdf'].includes(slug)&&<label className="field full">{slug==='protect-pdf'?'New opening password':'Current PDF password'}<input type="password" autoComplete="new-password" value={s.password} onChange={e=>update('password',e.target.value)}/></label>}
-    {['ocr-pdf','image-to-text'].includes(slug)&&select('language','Text language',['eng','urd','hin','eng+urd','eng+hin'])}
+    {['ocr-pdf','image-to-text'].includes(slug)&&select('language','Text language',['eng+urd+hin','eng','urd','hin','eng+urd','eng+hin'])}
     {['add-audio-to-video','add-subtitles-to-video'].includes(slug)&&<label className="field full">{slug==='add-audio-to-video'?'Soundtrack file':'SRT subtitle file'}<input type="file" aria-label={slug==='add-audio-to-video'?'Soundtrack file':'SRT subtitle file'} accept={slug==='add-audio-to-video'?'.mp3,.wav,.m4a,.aac,.ogg':'.srt'} onChange={e=>{const f=e.target.files?.[0];if(f&&f.size>100*1024*1024){e.target.value='';update('auxiliary',null);return;}update('auxiliary',f||null)}}/><small>Maximum auxiliary file size: 100 MB. {s.auxiliary?.name}</small></label>}
     {slug==='fill-pdf-form'&&<><FormFields file={file}/><label className="field full">Field values (JSON)<textarea aria-label="Field values (JSON)" rows={7} value={s.formValues} onChange={e=>update('formValues',e.target.value)} placeholder={'{"Full Name":"Adnan", "Accept":true}'}/><small>Copy exact field names from the list. Checkbox values must be true or false.</small></label></>}
   </>;
