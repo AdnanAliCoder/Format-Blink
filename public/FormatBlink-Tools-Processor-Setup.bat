@@ -98,6 +98,15 @@ if errorlevel 1 (
 >>"%STARTER%" echo   pause
 >>"%STARTER%" echo   exit /b 1
 >>"%STARTER%" echo ^)
+>>"%STARTER%" echo echo Checking for Format Blink Tools Processor updates...
+>>"%STARTER%" echo powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $base='https://raw.githubusercontent.com/AdnanAliCoder/Format-Blink/main/processor/tools/'; foreach($name in @('server.py','convert.py','requirements.txt')){$tmp=Join-Path $env:TEMP ('formatblink-'+$name); Invoke-WebRequest -UseBasicParsing ($base+$name) -OutFile $tmp; Move-Item -Force $tmp (Join-Path $env:ROOT $name)}" ^>nul 2^>^&1
+>>"%STARTER%" echo if errorlevel 1 echo WARNING: Update check failed. Starting the installed processor version.
+>>"%STARTER%" echo "%%VPY%%" -m pip install --disable-pip-version-check -q -r "%%ROOT%%\requirements.txt"
+>>"%STARTER%" echo if errorlevel 1 ^(
+>>"%STARTER%" echo   echo ERROR: Processor dependency update failed. Run FormatBlink-Tools-Processor-Setup.bat again.
+>>"%STARTER%" echo   pause
+>>"%STARTER%" echo   exit /b 1
+>>"%STARTER%" echo ^)
 >>"%STARTER%" echo for /r "%%LOCALAPPDATA%%\Microsoft\WinGet\Packages" %%%%F in ^(ffmpeg.exe^) do if exist "%%%%F" set "PATH=%%%%~dpF;%%PATH%%"
 >>"%STARTER%" echo cd /d "%%ROOT%%"
 >>"%STARTER%" echo echo.
