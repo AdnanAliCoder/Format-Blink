@@ -54,7 +54,7 @@ if errorlevel 1 (
 )
 
 echo Downloading Format Blink tools processor...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/AdnanAliCoder/Format-Blink/main/processor/tools/server.py' -OutFile '%ROOT%\server.py'; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/AdnanAliCoder/Format-Blink/main/processor/tools/convert.py' -OutFile '%ROOT%\convert.py'; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/AdnanAliCoder/Format-Blink/main/processor/tools/requirements.txt' -OutFile '%ROOT%\requirements.txt'"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/AdnanAliCoder/Format-Blink/main/processor/tools/server.py' -OutFile ($env:ROOT+'\server.py'); Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/AdnanAliCoder/Format-Blink/main/processor/tools/convert.py' -OutFile ($env:ROOT+'\convert.py'); Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/AdnanAliCoder/Format-Blink/main/processor/tools/requirements.txt' -OutFile ($env:ROOT+'\requirements.txt')"
 if errorlevel 1 (
   echo ERROR: Could not download processor files.
   pause
@@ -64,7 +64,11 @@ if errorlevel 1 (
 if not exist "%VPY%" (
   echo Creating Python environment...
   if exist "%VENV%" rmdir /s /q "%VENV%"
-  %PYEXE% -m venv "%VENV%"
+  if "%PYEXE%"=="py -3.11" (
+    py -3.11 -m venv "%VENV%"
+  ) else (
+    "%PYEXE%" -m venv "%VENV%"
+  )
 )
 if not exist "%VPY%" (
   echo ERROR: Python environment could not be created.
@@ -94,6 +98,7 @@ if errorlevel 1 (
 >>"%STARTER%" echo   pause
 >>"%STARTER%" echo   exit /b 1
 >>"%STARTER%" echo ^)
+>>"%STARTER%" echo for /r "%%LOCALAPPDATA%%\Microsoft\WinGet\Packages" %%%%F in ^(ffmpeg.exe^) do if exist "%%%%F" set "PATH=%%%%~dpF;%%PATH%%"
 >>"%STARTER%" echo cd /d "%%ROOT%%"
 >>"%STARTER%" echo echo.
 >>"%STARTER%" echo echo Format Blink Tools Processor is running on http://127.0.0.1:8766
@@ -104,7 +109,7 @@ if errorlevel 1 (
 >>"%STARTER%" echo echo Processor stopped.
 >>"%STARTER%" echo pause
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws=New-Object -ComObject WScript.Shell; $s=$ws.CreateShortcut([Environment]::GetFolderPath('Desktop')+'\Format Blink Tools Processor.lnk'); $s.TargetPath='%STARTER%'; $s.WorkingDirectory='%ROOT%'; $s.Save()"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws=New-Object -ComObject WScript.Shell; $s=$ws.CreateShortcut([Environment]::GetFolderPath('Desktop')+'\Format Blink Tools Processor.lnk'); $s.TargetPath=$env:STARTER; $s.WorkingDirectory=$env:ROOT; $s.Save()"
 
 echo.
 echo Setup complete.

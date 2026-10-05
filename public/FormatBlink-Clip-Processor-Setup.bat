@@ -73,7 +73,7 @@ if errorlevel 1 (
 )
 
 echo Downloading Format Blink processor files...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/AdnanAliCoder/Format-Blink/main/processor/studio/server.py' -OutFile '%ROOT%\server.py'; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/AdnanAliCoder/Format-Blink/main/processor/python/transcribe.py' -OutFile '%ROOT%\transcribe.py'"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/AdnanAliCoder/Format-Blink/main/processor/studio/server.py' -OutFile ($env:ROOT+'\server.py'); Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/AdnanAliCoder/Format-Blink/main/processor/python/transcribe.py' -OutFile ($env:ROOT+'\transcribe.py')"
 if errorlevel 1 (
   echo ERROR: Could not download processor files. Check your internet connection.
   pause
@@ -83,7 +83,11 @@ if errorlevel 1 (
 if not exist "%VPY%" (
   echo Creating Python virtual environment...
   if exist "%VENV%" rmdir /s /q "%VENV%"
-  %PYEXE% -m venv "%VENV%"
+  if "%PYEXE%"=="py -3.11" (
+    py -3.11 -m venv "%VENV%"
+  ) else (
+    "%PYEXE%" -m venv "%VENV%"
+  )
   if errorlevel 1 (
     echo ERROR: Virtual environment creation failed.
     pause
@@ -132,8 +136,8 @@ if errorlevel 1 (
 >>"%STARTER%" echo where ffmpeg ^>nul 2^>^&1
 >>"%STARTER%" echo if errorlevel 1 ^(
 >>"%STARTER%" echo   for /r "%%LOCALAPPDATA%%\Microsoft\WinGet\Packages" %%%%F in ^(ffmpeg.exe^) do ^(
->>"%STARTER%" echo     set "PATH=%%%%~dpF;%%PATH%%"
->>"%STARTER%" echo     goto :ffmpeg_ready
+>>"%STARTER%" echo     if exist "%%%%F" set "PATH=%%%%~dpF;%%PATH%%"
+>>"%STARTER%" echo     if exist "%%%%F" goto :ffmpeg_ready
 >>"%STARTER%" echo   ^)
 >>"%STARTER%" echo ^)
 >>"%STARTER%" echo :ffmpeg_ready
@@ -150,7 +154,7 @@ if errorlevel 1 (
 >>"%STARTER%" echo   exit /b 1
 >>"%STARTER%" echo ^)
 >>"%STARTER%" echo echo.
->>"%STARTER%" echo echo Format Blink Local Processor is running on http://127.0.0.1:8765
+>>"%STARTER%" echo echo Starting Format Blink Local Processor on http://127.0.0.1:8765
 >>"%STARTER%" echo echo Keep this window open while using Clip Studio.
 >>"%STARTER%" echo echo.
 >>"%STARTER%" echo "%%VPY%%" -m uvicorn server:app --host 127.0.0.1 --port 8765 --workers 1
@@ -158,7 +162,7 @@ if errorlevel 1 (
 >>"%STARTER%" echo echo Processor stopped.
 >>"%STARTER%" echo pause
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws=New-Object -ComObject WScript.Shell; $desktop=[Environment]::GetFolderPath('Desktop'); $s=$ws.CreateShortcut($desktop+'\Format Blink Clip Processor.lnk'); $s.TargetPath='%STARTER%'; $s.WorkingDirectory='%ROOT%'; $s.Save()"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws=New-Object -ComObject WScript.Shell; $desktop=[Environment]::GetFolderPath('Desktop'); $s=$ws.CreateShortcut($desktop+'\Format Blink Clip Processor.lnk'); $s.TargetPath=$env:STARTER; $s.WorkingDirectory=$env:ROOT; $s.Save()"
 if errorlevel 1 (
   echo WARNING: Desktop shortcut could not be created, but installation is complete.
 )
@@ -175,4 +179,6 @@ echo A Desktop shortcut named "Format Blink Clip Processor" was created.
 echo Starting the processor now...
 echo.
 start "" "%STARTER%"
+echo Waiting for processor health check...
+powershell -NoProfile -Command "$ready=$false; for($i=0;$i -lt 30;$i++){try{$h=Invoke-RestMethod 'http://127.0.0.1:8765/health' -TimeoutSec 2;if($h.ok){$ready=$true;break}}catch{}; Start-Sleep -Seconds 2}; if($ready){Start-Process 'https://formatblink.vercel.app/clips/studio';Write-Host 'Processor ready. Allow local network access in your browser if asked.'}else{Write-Host 'Processor did not start. Read the error in its window, then run setup again.';exit 1}"
 pause

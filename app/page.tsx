@@ -1,6 +1,6 @@
 import Site from '@/components/site';
 import {getConfig} from '@/lib/store';
-import {pageData} from '@/lib/pages';
+import {pageMetadata,structuredData} from '@/lib/seo';
 export const dynamic='force-dynamic';
-export async function generateMetadata(){const c=await getConfig(),p=pageData('/',c);return {title:c.siteTitle,description:c.pages['/']?.description||c.description,alternates:{canonical:c.siteUrl+'/'},verification:{google:c.verificationToken||undefined}}}
-export default async function Home(){return <Site path="/" config={await getConfig()}/>}
+export async function generateMetadata(){return pageMetadata('/',await getConfig())}
+export default async function Home(){const c=await getConfig();return <><script type="application/ld+json" dangerouslySetInnerHTML={{__html:structuredData('/',c)}}/><Site path="/" config={c}/></>}

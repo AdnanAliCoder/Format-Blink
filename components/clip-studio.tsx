@@ -109,9 +109,9 @@ export default function ClipStudio({
     part = useRef(0);
   async function checkLocalProcessor() {
     setProcessorState("checking");
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 10000);
     try {
-      const controller = new AbortController();
-      const timer = window.setTimeout(() => controller.abort(), 2200);
       const r = await fetch(LOCAL_PROCESSOR_BASE + "/health", {
         cache: "no-store",
         signal: controller.signal,
@@ -128,17 +128,23 @@ export default function ClipStudio({
       setRuntimeBase("");
       setProcessorState(configuredBase ? "connected" : "missing");
       return false;
-    }
+    } finally {window.clearTimeout(timer);}
   }
 
   useEffect(() => {
     mounted.current = true;
     void checkLocalProcessor();
+
     return () => {
       mounted.current = false;
       if (local.current) URL.revokeObjectURL(local.current);
     };
   }, []);
+  useEffect(() => {
+    const onFocus = () => {if(!jobId)void checkLocalProcessor();};
+    window.addEventListener('focus',onFocus);
+    return () => window.removeEventListener('focus',onFocus);
+  }, [jobId]);
   const active = clips.find((c) => c.id === activeId),
     settings = active?.settings || defaults;
   const selectedRanges = useMemo(
@@ -183,7 +189,7 @@ export default function ClipStudio({
     for (;;) {
       if (!mounted.current || token !== generation.current)
         throw new Error("Source changed.");
-      const d = await response(await fetch(base + "/api/jobs/" + task.taskId));
+      const d = await response(await fetch(base + "/api/jobs/" + task.taskId,{cache:"no-store",signal:AbortSignal.timeout(30000)}));
       if (d.status === "failed") throw new Error(d.error);
       if (d.status === "ready") return d;
       setStatus(
@@ -198,7 +204,7 @@ export default function ClipStudio({
     if (base) return true;
     setProcessorState("missing");
     setError(
-      "Format Blink Local Processor is not running. Install it on this Windows PC, start it, then click Check again.",
+      "Format Blink Local Processor is not running. Install it on this Windows PC, keep its window open, allow local network access in browser site settings, then click Check again.",
     );
     return false;
   }

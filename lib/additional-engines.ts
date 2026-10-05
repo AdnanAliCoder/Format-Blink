@@ -6,9 +6,17 @@ const types:Record<string,string>={pdf:'application/pdf',png:'image/png',jpg:'im
 export function output(data:Blob|Uint8Array|string,ext:string,name:string,detail?:string):Output{return {blob:data instanceof Blob?data:new Blob([typeof data==='string'?data:Uint8Array.from(data)],{type:types[ext]||'application/octet-stream'}),name:`${name}.${ext}`,detail};}
 export function newCanvas(width:number,height:number){if(!Number.isFinite(width)||!Number.isFinite(height)||width<1||height<1||width>16000||height>16000||width*height>25000000)throw new Error('Output must be within 16,000 pixels per side and 25 megapixels.');const c=document.createElement('canvas');c.width=Math.ceil(width);c.height=Math.ceil(height);return c;}
 async function remote(t:Tool,file:File,s:Settings,p:Progress,signal:AbortSignal){
-  const processor=(s.processorUrl||'http://127.0.0.1:8766').replace(/\/$/,'');
+  let processor=(s.processorUrl||'http://127.0.0.1:8766').replace(/\/$/,'');
   const base=new URL(processor);if(base.protocol!=='https:'&&!['localhost','127.0.0.1'].includes(base.hostname))throw new Error('The processor must use HTTPS.');
-  const form=new FormData();form.append('file',file);form.append('settings',JSON.stringify({password:s.password,language:s.language}));
+  if(t.slug==='pdf-to-word'){
+    const supportsLayout=async(url:string)=>{try{const r=await fetch(url+'/health',{signal:AbortSignal.any([signal,AbortSignal.timeout(10000)]),cache:'no-store'});const h=await r.json();return r.ok&&h.capabilities?.includes('pdf-word-layout-v1');}catch{return false;}};
+    if(!await supportsLayout(processor)){
+      const local='http://127.0.0.1:8766';
+      if(processor!==local&&await supportsLayout(local))processor=local;
+      else throw new Error('The connected processor needs the layout update. Update the Tools Processor on your PC using /FormatBlink-Tools-Processor-Setup.bat, or ask the site administrator to deploy the latest Modal processor.');
+    }
+  }
+  const form=new FormData();form.append('file',file);form.append('settings',JSON.stringify({password:s.password,language:s.language,documentMode:s.documentMode}));
   p(15,s.processorUrl?'Uploading to the connected processing service…':'Processing on your computer…');
   let response:Response;
   try{response=await fetch(`${processor}/api/tools/${t.slug}`,{method:'POST',body:form,signal});}

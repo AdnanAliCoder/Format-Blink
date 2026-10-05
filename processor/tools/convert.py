@@ -44,6 +44,7 @@ def render(source, directory):
             bitmap = page.render(scale=2.0)
             image = directory / f'page-{index+1}.png'
             bitmap.to_pil().save(image, 'PNG')
+            bitmap.close()
             images.append(image)
             page.close()
     finally:
@@ -65,7 +66,7 @@ def convert(slug, source, settings, directory):
         (user / 'registrymodifications.xcu').write_text('''<?xml version="1.0"?><oor:items xmlns:oor="http://openoffice.org/2001/registry"><item oor:path="/org.openoffice.Office.Common/Security/Scripting"><prop oor:name="MacroSecurityLevel" oor:op="fuse"><value>3</value></prop></item><item oor:path="/org.openoffice.Office.Calc/Content/Update"><prop oor:name="Link" oor:op="fuse"><value>2</value></prop></item></oor:items>''')
         target = directory / 'office'
         target.mkdir()
-        command(['libreoffice', '-env:UserInstallation=' + profile.as_uri(), '--headless', '--convert-to', 'pdf', '--outdir', str(target), str(source)])
+        command([__import__('shutil').which('libreoffice') or __import__('shutil').which('soffice') or 'libreoffice', '-env:UserInstallation=' + profile.as_uri(), '--headless', '--convert-to', 'pdf', '--outdir', str(target), str(source)])
         converted = target / (source.stem + '.pdf')
         if not converted.exists():
             raise ValueError('Office conversion failed. Check the document format.')
@@ -82,20 +83,50 @@ def convert(slug, source, settings, directory):
         with output.open('wb') as handle:
             writer.write(handle)
     elif slug == 'pdf-to-word':
-        from docx import Document
-        doc = Document()
-        reader = pdf_reader(source)
-        found = False
-        for i, page in enumerate(reader.pages):
-            if i:
-                doc.add_page_break()
-            text = page.extract_text() or ''
-            found = found or bool(text.strip())
-            for line in text.splitlines():
-                doc.add_paragraph(line)
-        if not found:
-            raise ValueError('No searchable text found. Run OCR PDF first.')
-        doc.save(output)
+        pdf_reader(source)
+        mode = settings.get('documentMode', 'editable')
+        if mode == 'appearance':
+            # One full-page image per section retains scans, diagrams and typography.
+            from docx import Document
+            from docx.shared import Pt
+            from docx.enum.section import WD_SECTION_START
+            import pypdfium2 as pdfium
+            doc = Document()
+            pdf = pdfium.PdfDocument(str(source))
+            try:
+                for i in range(len(pdf)):
+                    page = pdf[i]
+                    w, h = page.get_size()
+                    section = doc.sections[0] if i == 0 else doc.add_section(WD_SECTION_START.NEW_PAGE)
+                    section.page_width, section.page_height = Pt(w), Pt(h)
+                    section.top_margin = section.bottom_margin = Pt(0)
+                    section.left_margin = section.right_margin = Pt(0)
+                    section.header_distance = section.footer_distance = Pt(0)
+                    bitmap = page.render(scale=2)
+                    data = io.BytesIO()
+                    bitmap.to_pil().save(data, 'PNG')
+                    data.seek(0)
+                    para = doc.add_paragraph()
+                    para.paragraph_format.space_before = Pt(0)
+                    para.paragraph_format.space_after = Pt(0)
+                    para.paragraph_format.line_spacing = 1
+                    para.add_run().add_picture(data, width=Pt(w), height=Pt(h-1))
+                    bitmap.close()
+                    page.close()
+            finally:
+                pdf.close()
+            doc.save(output)
+        elif mode == 'editable':
+            from pdf2docx import Converter
+            if not any((page.extract_text() or '').strip() for page in pdf_reader(source).pages):
+                raise ValueError('This PDF is scanned. Choose Preserve appearance, or run OCR PDF before editable conversion.')
+            converter = Converter(str(source))
+            try:
+                converter.convert(str(output), multi_processing=False)
+            finally:
+                converter.close()
+        else:
+            raise ValueError('Choose editable or appearance conversion.')
     elif slug == 'pdf-to-excel':
         import pdfplumber
         from openpyxl import Workbook
@@ -113,6 +144,15 @@ def convert(slug, source, settings, directory):
                         for cell in row:
                             if isinstance(cell.value, str):
                                 cell.data_type = 's'
+                    from openpyxl.styles import Alignment
+                    from openpyxl.utils import get_column_letter
+                    sheet.freeze_panes = 'A2'
+                    for row in sheet:
+                        for cell in row:
+                            cell.alignment = Alignment(wrap_text=True, vertical='top')
+                    for column in sheet.columns:
+                        length = max((len(str(c.value or '')) for c in column), default=10)
+                        sheet.column_dimensions[get_column_letter(column[0].column)].width = min(60, max(12, length+2))
         if not book.sheetnames:
             raise ValueError('No text-based tables detected. OCR scanned pages first.')
         book.save(output)
@@ -157,27 +197,17 @@ def convert(slug, source, settings, directory):
         html = source.read_text(encoding='utf-8')
         if any(token in html.lower() for token in ('<script', 'http://', 'https://', 'file://')):
             raise ValueError('Use self-contained HTML without scripts or external resources.')
+        from weasyprint import HTML
+        def deny_resources(url, *args, **kwargs):
+            # Permit only embedded raster images; never fetch network or local files.
+            from weasyprint import default_url_fetcher
+            if url.startswith(('data:image/png;', 'data:image/jpeg;', 'data:image/gif;', 'data:image/webp;')) and len(url) <= 14_000_000:
+                return default_url_fetcher(url)
+            raise ValueError('External and local resources are disabled.')
         try:
-            from weasyprint import HTML
-            def deny_resources(url, *args, **kwargs):
-                raise ValueError('External and local resources are disabled.')
             HTML(string=html, url_fetcher=deny_resources).write_pdf(output)
-        except Exception:
-            from bs4 import BeautifulSoup
-            from reportlab.lib.pagesizes import A4
-            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-            from reportlab.lib.styles import getSampleStyleSheet
-            soup = BeautifulSoup(html, 'html.parser')
-            for node in soup(['script','style']):
-                node.decompose()
-            styles = getSampleStyleSheet()
-            story = []
-            for line in (x.strip() for x in soup.get_text('\n').splitlines()):
-                if line:
-                    story.extend([Paragraph(line.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;'), styles['BodyText']), Spacer(1, 6)])
-            if not story:
-                raise ValueError('No printable text found in the HTML file.')
-            SimpleDocTemplate(str(output), pagesize=A4).build(story)
+        except Exception as error:
+            raise ValueError('HTML layout rendering failed. Check the HTML and the WeasyPrint installation.') from error
     elif slug == 'background-remover':
         from PIL import Image
         from rembg import remove, new_session

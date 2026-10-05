@@ -49,7 +49,7 @@ class UploadGuard:
 app.add_middleware(UploadGuard)
 
 @app.get('/health')
-def health(): return {'ok': True, 'mode': 'local' if LOCAL_MODE else 'server', 'tools': sorted(EXTENSIONS)}
+def health(): return {'ok': True, 'version': '2026-10-05', 'capabilities': ['pdf-word-layout-v1','html-layout-v1'], 'mode': 'local' if LOCAL_MODE else 'server', 'tools': sorted(EXTENSIONS)}
 
 @app.post('/api/tools/{slug}')
 async def process(slug: str, file: UploadFile = File(...), settings: str = Form('{}')):
@@ -82,7 +82,7 @@ async def process(slug: str, file: UploadFile = File(...), settings: str = Form(
                 handle.write(chunk)
         if not size: raise HTTPException(400, 'Empty files are not supported.')
         # One subprocess per job bounds runtime and releases native-engine memory afterwards.
-        worker = await asyncio.create_subprocess_exec(sys.executable, str(Path(__file__).with_name('convert.py')), slug, str(source), stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, start_new_session=True)
+        worker = await asyncio.create_subprocess_exec(sys.executable, str(Path(__file__).with_name('convert.py')), slug, str(source), stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, start_new_session=(os.name != 'nt'))
         try:
             stdout, stderr = await asyncio.wait_for(worker.communicate(json.dumps(values).encode()), timeout=600)
         except asyncio.TimeoutError:
@@ -101,7 +101,10 @@ async def process(slug: str, file: UploadFile = File(...), settings: str = Form(
     finally:
         if worker:
             import signal
-            try: os.killpg(worker.pid, signal.SIGKILL)
+            try:
+                if os.name == 'nt':
+                    if worker.returncode is None: worker.kill()
+                else: os.killpg(worker.pid, signal.SIGKILL)
             except ProcessLookupError: pass
             await worker.wait()
         active_jobs -= 1

@@ -8,7 +8,7 @@ const remote = {processing: 'server' as const};
 export const additionalTools: Tool[] = [
   tool('file','compress-pdf','Compress PDF','.pdf','pdf','Reduce scanned PDF size with adjustable image quality.',{note:'Creates image-only pages. Searchable text, links, forms and signatures are flattened. Already compact files may not shrink.'}),
   tool('file','pdf-editor','PDF Editor','.pdf','pdf','Add text, highlights and rectangles to selected PDF pages.',{note:'Adds annotations over the page; does not rewrite existing text. Use Redact PDF to remove sensitive content.'}),
-  tool('file','pdf-to-word','PDF to Word','.pdf','docx','Extract PDF text into an editable Word document.',{...remote,note:'Text-first conversion. Original page layout and images are not preserved. Scanned PDFs require OCR first.'}),
+  tool('file','pdf-to-word','PDF to Word','.pdf','docx','Convert PDF pages, images and tables into a Word document.',{...remote,note:'Choose editable layout or preserve appearance. Complex editable layouts can need adjustments; appearance mode keeps pages as images.'}),
   tool('file','word-to-pdf','Word to PDF','.doc,.docx,.odt','pdf','Render Word documents as PDF.',remote),
   tool('file','ocr-pdf','OCR PDF','.pdf','pdf','Recognize scanned text and create a searchable PDF.',remote),
   tool('file','pdf-to-excel','PDF to Excel','.pdf','xlsx','Extract detected PDF tables into Excel worksheets.',{...remote,note:'Works with text-based tables. Scans need OCR first; review extracted rows and columns.'}),

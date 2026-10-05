@@ -271,11 +271,11 @@ async def lifespan(app):
     cleaner.cancel()
 
 app = FastAPI(lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=ORIGINS, allow_methods=['GET','POST','DELETE'], allow_headers=['Content-Type'])
+app.add_middleware(CORSMiddleware, allow_origins=ORIGINS, allow_methods=['GET','POST','DELETE'], allow_headers=['Content-Type','Range'], expose_headers=['Content-Range','Accept-Ranges','Content-Length'])
 
 def origin_allowed(origin):
     if not origin:
-        return True
+        return False
     if origin in ORIGINS:
         return True
     if LOCAL_MODE:
@@ -294,10 +294,13 @@ def origin_allowed(origin):
 async def origin_guard(request, call_next):
     if request.method in ('POST','DELETE') and not origin_allowed(request.headers.get('origin')):
         return JSONResponse({'detail': 'Origin is not allowed.'}, status_code=403)
-    return await call_next(request)
+    response = await call_next(request)
+    if request.method == 'OPTIONS' and origin_allowed(request.headers.get('origin')) and request.headers.get('access-control-request-private-network') == 'true':
+        response.headers['Access-Control-Allow-Private-Network'] = 'true'
+    return response
 
 @app.get('/health')
-def health(): return {'ok': True, 'mode': 'local' if LOCAL_MODE else 'server', 'maxUploadBytes': MAX_BYTES, 'maxDuration': MAX_SECONDS}
+def health(): return {'ok': bool(shutil.which('ffmpeg') and shutil.which('ffprobe')), 'version': '2026-10-05', 'dependencies': {'ffmpeg':bool(shutil.which('ffmpeg')),'ffprobe':bool(shutil.which('ffprobe'))}, 'mode': 'local' if LOCAL_MODE else 'server', 'maxUploadBytes': MAX_BYTES, 'maxDuration': MAX_SECONDS}
 
 @app.post('/api/import')
 async def import_video(request: Request):
