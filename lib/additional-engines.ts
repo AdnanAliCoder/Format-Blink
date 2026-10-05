@@ -12,16 +12,15 @@ async function remote(t:Tool,file:File,s:Settings,p:Progress,signal:AbortSignal)
   if(requiredCapability){
     const supports=async(url:string)=>{try{const r=await fetch(url+'/health',{signal:AbortSignal.any([signal,AbortSignal.timeout(10000)]),cache:'no-store'});const h=await r.json();return r.ok&&h.capabilities?.includes(requiredCapability);}catch{return false;}};
     if(!await supports(processor)){
-      const local='http://127.0.0.1:8766';
-      if(processor!==local&&await supports(local))processor=local;
-      else throw new Error('The connected processor is outdated. Install/run the latest Format Blink Tools Processor or deploy the latest tools service.');
+      if(s.processorUrl)throw new Error('Format Blink cloud processor is running an older release. The Modal tools service must be redeployed; users do not need to install anything.');
+      throw new Error('The local Format Blink Tools Processor is outdated. Run the latest Tools Processor setup once to update it.');
     }
   }
   const form=new FormData();form.append('file',file);form.append('settings',JSON.stringify({password:s.password,language:t.slug==='pdf-to-word'?'eng+urd+hin':s.language}));
   p(15,s.processorUrl?'Uploading to the connected processing service…':'Processing on your computer…');
   let response:Response;
   try{response=await fetch(`${processor}/api/tools/${t.slug}`,{method:'POST',body:form,signal});}
-  catch{throw new Error('Format Blink Tools Processor is not running. Install it on this Windows PC, start it, then try again.');}
+  catch{throw new Error(s.processorUrl?'Format Blink cloud processor could not be reached. Please retry shortly.':'Format Blink Tools Processor is not running. Start the local processor, then try again.');}
   if(!response.ok){const error=await response.json().catch(()=>null);throw new Error(typeof error?.detail==='string'?error.detail:`Processing service returned ${response.status}. Please retry later.`);}
   const expected=types[t.output];if(expected&&!response.headers.get('content-type')?.includes(expected))throw new Error('The processor returned an unexpected file type.');
   const blob=await response.blob();if(!blob.size)throw new Error('The processor returned an empty file.');
