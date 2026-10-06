@@ -31,6 +31,14 @@ with tempfile.TemporaryDirectory() as tmp:
         partial=client.get(imported['sourceUrl'],headers={'range':'bytes=0-99'})
         assert partial.status_code==206 and len(partial.content)==100
         root=Path(tmp)/'jobs'/job
+        assert (root/'preview.mp4').read_bytes() == sample.read_bytes(), 'Compatible MP4 should not be rewritten'
+        assert client.post('/api/process',json={'jobId':job,'profile':'invalid'},headers=headers).status_code==400
+        cached={'profile':'fast','language':'en','segments':[{'id':1,'start':0,'end':1,'text':'Cached transcript'}]}
+        (root/'transcript-fast.json').write_text(json.dumps(cached))
+        transcript=finish(client.post('/api/process',json={'jobId':job,'profile':'fast'},headers=headers).json())
+        assert transcript['transcript']==cached
+        assert not (root/'audio.wav').exists(), 'Cached transcript must skip extraction and inference'
+
         (root/'transcript.json').write_text(json.dumps({'segments':[{'id':1,'start':0,'end':1,'text':'first selected'},{'id':2,'start':1,'end':4,'text':'EXCLUDED MIDDLE'},{'id':3,'start':4,'end':6,'text':'last selected'}]}))
         body={'jobId':job,'ranges':[{'start':0,'end':1},{'start':4,'end':6}],'aspect':'1:1','cropX':0,'cropY':1,'captions':True,'overlayText':"100%: user's title",'shape':'outline','shapeColor':'#00ff00','mute':True}
         result=finish(client.post('/api/render',json=body,headers=headers).json())

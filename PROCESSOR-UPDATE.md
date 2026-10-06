@@ -1,3 +1,19 @@
+# October 6 Clip Studio and PDF processing update
+
+- Compatible H.264/AAC MP4 uploads are used directly, without rewriting the entire video. Local browser previews keep using the selected file when compatible.
+- Transcription remains an explicit button action. Fast mode uses multilingual Whisper base with CPU int8 and greedy decoding; Accurate mode uses small with beam search and word timestamps. `WHISPER_MODEL` still overrides the model. First use downloads model files; repeat transcripts are cached per source/mode.
+- The UI shows transcription stage, audio position, percentage and elapsed time. Transcription has a duration-based timeout (5 minutes minimum, 2 hours maximum), instead of silently waiting four hours. An error returns control to manual clipping.
+- Crop, captions, text and shapes render in one encoding pass per selected section. Joining sections copies streams. Windows filter paths and UTF-8 output are handled explicitly.
+- PDF to Excel detects borderless tables and retains readable non-table pages as text sheets. PDF to Word avoids OCR on short native-text and blank pages; scanned pages still use editable OCR conversion.
+
+Update the Windows Clip Processor by closing its running window and reopening its desktop shortcut; the existing launcher downloads the current worker files. Refresh Clip Studio afterwards. No setup reinstall is required for this update.
+
+The Modal tools service is separate from the website. The existing GitHub workflow deploys it on changes to `processor/tools/**` when Modal Actions credentials are configured. Expected tools health version: `2026-10-06.1`. If deployment fails, run `python -m modal deploy modal_tools.py --strategy rolling` from an authenticated repository checkout, then `python scripts/verify-modal-tools.py`.
+
+Verification: real FFmpeg import/seek/noncontiguous export/crop/captions/text/mute/download tests; transcript-cache and profile-validation checks; native and scanned Word/Excel sample conversions; borderless Excel and sparse Word regression fixtures; TypeScript check. Full Windows execution, the user's original media/PDFs and production speech speed require validation on the actual machine. A broader smoke test passed the relevant Word/Excel cases but could not run unrelated HTML conversion because WeasyPrint is absent from this test environment.
+
+---
+
 # October 5 conversion and indexing update
 
 The Next.js deployment and the Modal tools service are separate deployments. After pulling this commit, deploy the latter from the repository root using an authenticated Modal account:
