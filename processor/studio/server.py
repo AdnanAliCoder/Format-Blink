@@ -36,7 +36,7 @@ JOBS = {}
 BUSY = set()
 
 def run(args, timeout=14400):
-    p = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+    p = subprocess.run(args, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=timeout, env={**os.environ, 'PYTHONIOENCODING': 'utf-8'})
     if p.returncode:
         raise ValueError('Media engine failed: ' + p.stderr[-500:])
     return p.stdout
@@ -104,6 +104,7 @@ def probe(path):
     if path.stat().st_size > MAX_BYTES:
         raise ValueError('Video exceeds the configured upload limit.')
     return {'duration': duration, 'width': video['width'], 'height': video['height'],
+            'mp4Container': 'mp4' in info['format'].get('format_name', '').split(','),
             'hasAudio': any(s['codec_type'] == 'audio' for s in info['streams']),
             'browserCompatible': video.get('codec_name') == 'h264' and video.get('pix_fmt') == 'yuv420p' and all(s.get('codec_name') == 'aac' for s in info['streams'] if s['codec_type'] == 'audio')}
 
@@ -116,22 +117,38 @@ def prepare(job_id, url=None):
     # Normalize remote media to a seekable browser-compatible source once.
     normalized = root / 'preview.mp4'
     codecs = ['-c', 'copy'] if info['browserCompatible'] else ['-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '24', '-pix_fmt', 'yuv420p', '-c:a', 'aac']
-    run(['ffmpeg', '-y', '-i', str(source), '-map', '0:v:0', '-map', '0:a:0?', *codecs, '-movflags', '+faststart', str(normalized)])
+    if info['browserCompatible'] and info['mp4Container']:
+        source.replace(normalized)
+    else:
+        run(['ffmpeg', '-nostdin', '-y', '-i', str(source), '-map', '0:v:0', '-map', '0:a:0?', *codecs, '-movflags', '+faststart', str(normalized)])
     (root / 'meta.json').write_text(json.dumps(info))
     source.unlink(missing_ok=True)
     return {'jobId': job_id, 'sourceUrl': f'/api/source/{job_id}', **info}
 
-def transcribe(job_id):
+def transcribe(job_id, profile='fast'):
     root = job_path(job_id)
     meta = metadata(job_id)
     if not meta['hasAudio']:
         raise ValueError('This video has no audio. Use manual time ranges to create clips.')
+    cached = root / f'transcript-{profile}.json'
+    if cached.exists():
+        transcript = json.loads(cached.read_text(encoding='utf-8'))
+        (root/'transcript.json').write_text(json.dumps(transcript), encoding='utf-8')
+        return {'jobId': job_id, 'transcript': transcript, 'sourceUrl': f'/api/source/{job_id}', **meta}
+    progress_file = root / 'progress.json'
+    progress_file.write_text(json.dumps({'stage':'Extracting audio', 'progress':2}))
     audio = root / 'audio.wav'
     try:
-        run(['ffmpeg', '-y', '-i', str(root / 'preview.mp4'), '-vn', '-ac', '1', '-ar', '16000', str(audio)])
+        run(['ffmpeg', '-nostdin', '-y', '-i', str(root / 'preview.mp4'), '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', str(audio)], timeout=300)
         script = Path(__file__).with_name('transcribe.py')
         if not script.exists(): script = Path(__file__).parents[1] / 'python/transcribe.py'
-        transcript = json.loads(run([sys.executable, str(script), str(audio)]))
+        # Short videos cannot silently spend four hours loading/transcribing.
+        timeout = max(300, min(7200, int(meta['duration'] * 4 + 180)))
+        try:
+            transcript = json.loads(run([sys.executable, str(script), str(audio), str(progress_file), profile], timeout=timeout))
+        except subprocess.TimeoutExpired as error:
+            raise ValueError('Transcription timed out. Check the first-run model download/internet connection or use Fast mode. Manual clip selection is still available.') from error
+        cached.write_text(json.dumps(transcript), encoding='utf-8')
         (root / 'transcript.json').write_text(json.dumps(transcript))
         return {'jobId': job_id, 'transcript': transcript, 'sourceUrl': f'/api/source/{job_id}', **meta}
     finally:
@@ -190,7 +207,10 @@ Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
                 clean = ' '.join(w['word'] for w in selected).replace('\\', '').replace('{', '').replace('}', '').replace('\n', ' ')
                 text += f'Dialogue: 0,{ass_time(offset+start-a)},{ass_time(offset+end-a)},Default,,0,0,0,,{clean}\n'
         offset += b-a
-    output.write_text(text)
+    output.write_text(text, encoding='utf-8')
+
+def filter_path(path):
+    return str(path.resolve()).replace('\\', '/').replace(':', r'\:').replace("'", r"'\\''")
 
 def render(job_id, body):
     root = job_path(job_id)
@@ -203,36 +223,34 @@ def render(job_id, body):
     width, height = formats.get(body.get('aspect'), (meta['width']//2*2, meta['height']//2*2))
     x, y = max(0, min(1, float(body.get('cropX', .5)))), max(0, min(1, float(body.get('cropY', .5))))
     filters = [f"crop='min(iw,ih*{width}/{height})':'min(ih,iw*{height}/{width})':(iw-ow)*{x}:(ih-oh)*{y}", f'scale={width}:{height}', 'setsar=1']
-    for i, section in enumerate(sections):
-        args = ['ffmpeg', '-y', '-ss', str(section['start']), '-i', str(root/'preview.mp4'), '-t', str(section['end']-section['start']), '-map', '0:v:0', '-map', '0:a:0?', '-vf', ','.join(filters), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ar', '48000', str(work/f'part{i}.mp4')]
-        run(args)
-    listing = work / 'parts.txt'
-    listing.write_text(''.join(f"file 'part{i}.mp4'\n" for i in range(len(sections))))
-    joined = work / 'joined.mp4'
-    run(['ffmpeg', '-y', '-f', 'concat', '-safe', '0', '-i', str(listing), '-c', 'copy', str(joined)])
-    final_filters = []
-    if body.get('captions', True) and (root/'transcript.json').exists():
-        ass = work / 'captions.ass'
-        subtitles(root, sections, body.get('captionStyle', {}), width, height, ass)
-        final_filters.append(f"subtitles='{ass}'")
-    shape = body.get('shape', 'none')
-    if shape in ('box', 'bar', 'outline'):
-        fill = 'fill' if shape != 'outline' else '8'
-        final_filters.append(f"drawbox=x=iw*0.1:y=ih*0.08:w=iw*0.8:h=ih*{.12 if shape=='bar' else .25}:color=0x{color(body.get('shapeColor','#000000'))}@0.6:t={fill}")
-    overlay = str(body.get('overlayText', ''))[:1000]
-    if overlay:
-        textfile = work/'overlay.txt'
-        textfile.write_text(overlay)
-        size = max(20, min(100, int(body.get('overlaySize', 46))))
-        final_filters.append(f"drawtext=textfile='{textfile}':expansion=none:fontcolor=0x{color(body.get('overlayColor','#ffffff'))}:fontsize={size}:x=(w-text_w)/2:y=h*0.1")
     out = root / f'{render_id}.mp4'
-    args = ['ffmpeg', '-y', '-i', str(joined)]
-    if final_filters: args += ['-vf', ','.join(final_filters), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20']
-    else: args += ['-c:v', 'copy']
-    args += ['-an'] if body.get('mute') else ['-c:a', 'aac']
-    args += ['-movflags', '+faststart', str(out)]
-    try: run(args)
-    finally: shutil.rmtree(work, ignore_errors=True)
+    try:
+        for i, section in enumerate(sections):
+            part_filters = list(filters)
+            if body.get('captions', True) and (root/'transcript.json').exists():
+                ass = work / f'captions{i}.ass'
+                subtitles(root, [section], body.get('captionStyle', {}), width, height, ass)
+                part_filters.append(f"subtitles='{filter_path(ass)}'")
+            shape = body.get('shape', 'none')
+            if shape in ('box', 'bar', 'outline'):
+                fill = 'fill' if shape != 'outline' else '8'
+                part_filters.append(f"drawbox=x=iw*0.1:y=ih*0.08:w=iw*0.8:h=ih*{.12 if shape=='bar' else .25}:color=0x{color(body.get('shapeColor','#000000'))}@0.6:t={fill}")
+            overlay = str(body.get('overlayText', ''))[:1000]
+            if overlay:
+                textfile = work/'overlay.txt'
+                textfile.write_text(overlay, encoding='utf-8')
+                size = max(20, min(100, int(body.get('overlaySize', 46))))
+                part_filters.append(f"drawtext=textfile='{filter_path(textfile)}':expansion=none:fontcolor=0x{color(body.get('overlayColor','#ffffff'))}:fontsize={size}:x=(w-text_w)/2:y=h*0.1")
+            args = ['ffmpeg', '-nostdin', '-y', '-ss', str(section['start']), '-i', str(root/'preview.mp4'), '-t', str(section['end']-section['start']), '-map', '0:v:0', '-map', '0:a:0?', '-vf', ','.join(part_filters), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-pix_fmt', 'yuv420p']
+            args += ['-an'] if body.get('mute') else ['-c:a', 'aac', '-ar', '48000']
+            args += [str(work/f'part{i}.mp4')]
+            run(args, timeout=max(180, min(7200, int((section['end']-section['start'])*10))))
+        listing = work / 'parts.txt'
+        listing.write_text(''.join(f"file 'part{i}.mp4'\n" for i in range(len(sections))))
+        # Crop, captions, shapes and text are rendered together, once per section.
+        run(['ffmpeg', '-nostdin', '-y', '-f', 'concat', '-safe', '0', '-i', str(listing), '-c', 'copy', '-movflags', '+faststart', str(out)], timeout=300)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
     return {'url': f'/api/download/{job_id}/{render_id}.mp4', 'duration': sum(s['end']-s['start'] for s in sections)}
 
 def enqueue(job_id, operation, *args):
@@ -240,10 +258,11 @@ def enqueue(job_id, operation, *args):
         raise HTTPException(429, 'Processor busy. Retry after the current jobs finish.')
     task_id = uuid4().hex
     BUSY.add(job_id)
-    JOBS[task_id] = {'status': 'queued', 'jobId': job_id, 'created': time.time()}
+    JOBS[task_id] = {'status': 'queued', 'jobId': job_id, 'created': time.time(), 'operation': operation.__name__}
     def work():
         JOBS[task_id]['status'] = 'processing'
         try:
+            (ROOT/job_id/'progress.json').unlink(missing_ok=True)
             result = operation(job_id, *args)
             JOBS[task_id].update(status='ready', **result)
         except Exception as error:
@@ -300,7 +319,7 @@ async def origin_guard(request, call_next):
     return response
 
 @app.get('/health')
-def health(): return {'ok': bool(shutil.which('ffmpeg') and shutil.which('ffprobe')), 'version': '2026-10-05', 'dependencies': {'ffmpeg':bool(shutil.which('ffmpeg')),'ffprobe':bool(shutil.which('ffprobe'))}, 'mode': 'local' if LOCAL_MODE else 'server', 'maxUploadBytes': MAX_BYTES, 'maxDuration': MAX_SECONDS}
+def health(): return {'ok': bool(shutil.which('ffmpeg') and shutil.which('ffprobe')), 'version': '2026-10-06', 'dependencies': {'ffmpeg':bool(shutil.which('ffmpeg')),'ffprobe':bool(shutil.which('ffprobe'))}, 'mode': 'local' if LOCAL_MODE else 'server', 'maxUploadBytes': MAX_BYTES, 'maxDuration': MAX_SECONDS}
 
 @app.post('/api/import')
 async def import_video(request: Request):
@@ -338,7 +357,9 @@ async def process(request: Request):
     job_id = body.get('jobId','')
     metadata(job_id)
     if job_id in BUSY: raise HTTPException(409,'This video is already processing.')
-    return enqueue(job_id, transcribe)
+    profile = body.get('profile', 'fast')
+    if profile not in ('fast', 'accurate'): raise HTTPException(400, 'Invalid transcript mode.')
+    return enqueue(job_id, transcribe, profile)
 
 @app.post('/api/render')
 async def render_video(request: Request):
@@ -353,7 +374,13 @@ async def render_video(request: Request):
 @app.get('/api/jobs/{task_id}')
 def job(task_id: str):
     if task_id not in JOBS: raise HTTPException(404,'Task expired or processor restarted. Add the video again.')
-    return JOBS[task_id]
+    result = dict(JOBS[task_id])
+    result['elapsed'] = round(time.time() - result['created'])
+    if result['status'] == 'processing' and result.get('operation') == 'transcribe':
+        try:
+            result.update(json.loads((ROOT/result['jobId']/'progress.json').read_text()))
+        except (OSError, ValueError): pass
+    return result
 
 @app.get('/api/source/{job_id}')
 def source(job_id: str):

@@ -151,8 +151,8 @@ def page_needs_word_ocr(page):
     """Recognize scans even when a previous OCR engine already added hidden text."""
     import fitz
     text = page.get_text().strip()
-    if len(''.join(text.split())) < 8:
-        return True
+    if not text:
+        return bool(page.get_images())
     if any(span.get('type') == 3 for span in page.get_texttrace()):
         return True
     area = max(1, page.rect.get_area())
@@ -382,16 +382,28 @@ def convert(slug, source, settings, directory):
             with pdfplumber.open(source) as pdf:
                 for i, page in enumerate(pdf.pages):
                     tables = page.extract_tables()
+                    if not tables and page.extract_words():
+                        tables = [table for table in page.extract_tables({
+                            'vertical_strategy': 'text', 'horizontal_strategy': 'text',
+                            'min_words_vertical': 2, 'min_words_horizontal': 1,
+                        }) if sum(any(str(cell or '').strip() for cell in row) for row in table) >= 2
+                            and max((sum(bool(str(cell or '').strip()) for cell in row) for row in table), default=0) >= 2]
                     if tables:
                         for j, table in enumerate(tables):
                             sheet = book.create_sheet(f'Page {i+1} table {j+1}')
                             for row in table:
-                                sheet.append(row)
+                                if any(str(cell or '').strip() for cell in row):
+                                    sheet.append(row)
                     else:
                         # Automatic scanned-page fallback. OCR words are grouped by
                         # visual lines and large horizontal gaps become Excel cells.
                         page_text = (reader.pages[i].extract_text() or '').strip()
-                        if len(page_text) < 12:
+                        if page_text:
+                            # Preserve readable pages even when their geometry is not a table.
+                            sheet = book.create_sheet(f'Page {i+1} text')
+                            for line in page_text.splitlines():
+                                if line.strip(): sheet.append([line])
+                        else:
                             rendered = pdfium_doc[i]
                             bitmap = rendered.render(scale=2.0)
                             image = bitmap.to_pil().convert('RGB')

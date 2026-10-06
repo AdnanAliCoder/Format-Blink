@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 type Seg = { id: number; start: number; end: number; text: string };
 type Range = { start: number; end: number };
 type ProcessorData = {
@@ -9,7 +9,12 @@ type ProcessorData = {
   duration: number;
   width: number;
   height: number;
+  browserCompatible?: boolean;
+  mp4Container?: boolean;
   status?: string;
+  stage?: string;
+  progress?: number;
+  elapsed?: number;
   error?: string;
   detail?: string;
   transcript: { segments: Seg[]; language: string };
@@ -79,6 +84,7 @@ export default function ClipStudio({
 }: {
   processorBase?: string;
 }) {
+  const [transcriptMode, setTranscriptMode] = useState("fast");
   const configuredBase = processorBase.replace(/\/$/, "");
   const [runtimeBase, setRuntimeBase] = useState("");
   const [processorState, setProcessorState] = useState<"checking" | "connected" | "missing">("checking");
@@ -107,7 +113,7 @@ export default function ClipStudio({
     generation = useRef(0),
     mounted = useRef(true),
     part = useRef(0);
-  async function checkLocalProcessor() {
+  const checkLocalProcessor = useCallback(async () => {
     setProcessorState("checking");
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), 10000);
@@ -129,22 +135,23 @@ export default function ClipStudio({
       setProcessorState(configuredBase ? "connected" : "missing");
       return false;
     } finally {window.clearTimeout(timer);}
-  }
+  }, [configuredBase]);
 
   useEffect(() => {
     mounted.current = true;
-    void checkLocalProcessor();
+    const timer = window.setTimeout(() => void checkLocalProcessor(), 0);
 
     return () => {
+      window.clearTimeout(timer);
       mounted.current = false;
       if (local.current) URL.revokeObjectURL(local.current);
     };
-  }, []);
+  }, [checkLocalProcessor]);
   useEffect(() => {
     const onFocus = () => {if(!jobId)void checkLocalProcessor();};
     window.addEventListener('focus',onFocus);
     return () => window.removeEventListener('focus',onFocus);
-  }, [jobId]);
+  }, [jobId, checkLocalProcessor]);
   const active = clips.find((c) => c.id === activeId),
     settings = active?.settings || defaults;
   const selectedRanges = useMemo(
@@ -195,7 +202,7 @@ export default function ClipStudio({
       setStatus(
         d.status === "queued"
           ? "Waiting for the processor…"
-          : "Processing video… Long recordings take more time.",
+          : `${d.stage || "Processing video"}${d.progress != null ? ` — ${d.progress}%` : ""} · ${Math.floor((d.elapsed || 0) / 60)}m ${(d.elapsed || 0) % 60}s`,
       );
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }
@@ -270,7 +277,7 @@ export default function ClipStudio({
       const d = await wait(task, token);
       if (token !== generation.current) return;
       setJobId(d.jobId);
-      setSource(absolute(d.sourceUrl));
+      setSource(file && local.current && d.browserCompatible && d.mp4Container ? local.current : absolute(d.sourceUrl));
       setSeconds(d.duration);
       setDimensions({ width: d.width, height: d.height });
       setManualEnd(Math.min(60, d.duration));
@@ -290,7 +297,7 @@ export default function ClipStudio({
     setStatus("Creating timestamped transcript…");
     try {
       const d = await wait(
-        await request("/api/process", { jobId }),
+        await request("/api/process", { jobId, profile: transcriptMode }),
         generation.current,
       );
       setSegments(d.transcript.segments);
@@ -705,13 +712,21 @@ export default function ClipStudio({
                     >
                       Create clip from time range
                     </button>
+                    <label>
+                      Transcript mode
+                      <select value={transcriptMode} disabled={busy} onChange={(e) => setTranscriptMode(e.target.value)}>
+                        <option value="fast">Fast — smaller multilingual model</option>
+                        <option value="accurate">Accurate — larger model, slower</option>
+                      </select>
+                    </label>
+                    <small>First use may download the speech model. Select transcript sections to create clips, then crop and add text before export.</small>
                     <button
                       className="btn btn-primary"
                       disabled={busy}
                       onClick={transcribe}
                     >
                       {segments.length
-                        ? "Recreate transcript"
+                        ? "Load transcript"
                         : "Create transcript"}
                     </button>
                   </>
