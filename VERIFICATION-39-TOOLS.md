@@ -1,4 +1,4 @@
-# Verification: 39 additional Format Blink tools
+# Verification: 39 additional FormatBlink tools
 
 Verified on 2026-10-03 using generated sample documents, images and short videos.
 
