@@ -1,4 +1,4 @@
-# Format Blink tools processor
+# FormatBlink tools processor
 
 This Python service implements the 13 tools marked `processing: 'server'` in `lib/additional-tools.ts`. The other 26 new tools run entirely in the browser.
 
