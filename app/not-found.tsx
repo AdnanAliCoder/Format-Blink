@@ -1,1 +1,1 @@
-export default function NotFound(){return <main className="status-page"><h1>This page could not be found.</h1><p>Choose a tool from the Format Blink directory.</p><a className="btn primary" href="/tools">Browse all tools</a></main>}
+export default function NotFound(){return <main className="status-page"><h1>This page could not be found.</h1><p>Choose a tool from the FormatBlink directory.</p><a className="btn primary" href="/tools">Browse all tools</a></main>}
