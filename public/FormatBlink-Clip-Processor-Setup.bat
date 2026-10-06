@@ -1,10 +1,10 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
-title Format Blink Local Processor Setup
+title FormatBlink Local Processor Setup
 
 echo.
 echo ==========================================
-echo   Format Blink Local Processor - Setup
+echo   FormatBlink Local Processor - Setup
 echo ==========================================
 echo.
 
@@ -72,7 +72,7 @@ if errorlevel 1 (
   )
 )
 
-echo Downloading Format Blink processor files...
+echo Downloading FormatBlink processor files...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/AdnanAliCoder/Format-Blink/main/processor/studio/server.py' -OutFile ($env:ROOT+'\server.py'); Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/AdnanAliCoder/Format-Blink/main/processor/python/transcribe.py' -OutFile ($env:ROOT+'\transcribe.py'); Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/AdnanAliCoder/Format-Blink/main/processor/studio/requirements.txt' -OutFile ($env:ROOT+'\requirements.txt')"
 if errorlevel 1 (
   echo ERROR: Could not download processor files. Check your internet connection.
@@ -119,7 +119,7 @@ if errorlevel 1 (
 
 > "%STARTER%" echo @echo off
 >>"%STARTER%" echo setlocal EnableExtensions EnableDelayedExpansion
->>"%STARTER%" echo title Format Blink Local Processor
+>>"%STARTER%" echo title FormatBlink Local Processor
 >>"%STARTER%" echo set "ROOT=%%LOCALAPPDATA%%\FormatBlink\ClipProcessor"
 >>"%STARTER%" echo set "VPY=%%LOCALAPPDATA%%\FormatBlink\ClipProcessor\.venv\Scripts\python.exe"
 >>"%STARTER%" echo set "FORMAT_BLINK_LOCAL=1"
@@ -163,7 +163,7 @@ if errorlevel 1 (
 >>"%STARTER%" echo   exit /b 1
 >>"%STARTER%" echo ^)
 >>"%STARTER%" echo echo.
->>"%STARTER%" echo echo Starting Format Blink Local Processor on http://127.0.0.1:8765
+>>"%STARTER%" echo echo Starting FormatBlink Local Processor on http://127.0.0.1:8765
 >>"%STARTER%" echo echo Keep this window open while using Clip Studio.
 >>"%STARTER%" echo echo.
 >>"%STARTER%" echo "%%VPY%%" -m uvicorn server:app --host 127.0.0.1 --port 8765 --workers 1
@@ -171,7 +171,7 @@ if errorlevel 1 (
 >>"%STARTER%" echo echo Processor stopped.
 >>"%STARTER%" echo pause
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws=New-Object -ComObject WScript.Shell; $desktop=[Environment]::GetFolderPath('Desktop'); $s=$ws.CreateShortcut($desktop+'\Format Blink Clip Processor.lnk'); $s.TargetPath=$env:STARTER; $s.WorkingDirectory=$env:ROOT; $s.Save()"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws=New-Object -ComObject WScript.Shell; $desktop=[Environment]::GetFolderPath('Desktop'); $s=$ws.CreateShortcut($desktop+'\FormatBlink Clip Processor.lnk'); $s.TargetPath=$env:STARTER; $s.WorkingDirectory=$env:ROOT; $s.Save()"
 if errorlevel 1 (
   echo WARNING: Desktop shortcut could not be created, but installation is complete.
 )
@@ -184,7 +184,7 @@ echo.
 echo Installed in:
 echo %ROOT%
 echo.
-echo A Desktop shortcut named "Format Blink Clip Processor" was created.
+echo A Desktop shortcut named "FormatBlink Clip Processor" was created.
 echo Starting the processor now...
 echo.
 start "" "%STARTER%"
