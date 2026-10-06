@@ -1,6 +1,7 @@
 import {defaultConfig,mergeConfig,type Config} from './config';
 import {rest} from './supabase';
 import {resolveToolsProcessor} from './tools-processor';
+import {revalidateTag,unstable_cache} from 'next/cache';
 
 function validProcessor(value:string|undefined){
   const endpoint=value?.trim();if(!endpoint)return '';
@@ -13,7 +14,7 @@ function withProcessors(config:Config):Config{
   return clip===config.processorUrl&&tools===config.toolsProcessorUrl?config:{...config,processorUrl:clip,toolsProcessorUrl:tools};
 }
 
-export async function getConfig():Promise<Config>{
+async function loadConfig():Promise<Config>{
   try{
     const r=await rest('settings?id=eq.site&select=value&limit=1');
     if(r.ok){
@@ -32,6 +33,10 @@ export async function getConfig():Promise<Config>{
   return withProcessors(structuredClone(defaultConfig));
 }
 
+const getCachedConfig=unstable_cache(loadConfig,['format-blink-config'],{tags:['format-blink-config'],revalidate:300});
+
+export async function getConfig():Promise<Config>{return getCachedConfig()}
+
 export async function saveConfig(value:Config,token:string){
   const r=await rest(
     'settings?id=eq.site',
@@ -39,4 +44,5 @@ export async function saveConfig(value:Config,token:string){
     token
   );
   if(!r.ok)throw new Error('Could not save settings to Supabase.');
+  revalidateTag('format-blink-config','max');
 }
