@@ -204,7 +204,7 @@ export default function ClipStudio({
     if (base) return true;
     setProcessorState("missing");
     setError(
-      "Format Blink Local Processor is not running. Install it on this Windows PC, keep its window open, allow local network access in browser site settings, then click Check again.",
+      "FormatBlink Local Processor is not running. Install it on this Windows PC, keep its window open, allow local network access in browser site settings, then click Check again.",
     );
     return false;
   }
@@ -439,7 +439,7 @@ export default function ClipStudio({
           </div>
           {!jobId && processorState === "checking" && (
             <div className="notice" role="status">
-              Checking for the Format Blink Local Processor…
+              Checking for the FormatBlink Local Processor…
             </div>
           )}
           {!jobId && processorState === "missing" && !configuredBase && (
@@ -447,7 +447,7 @@ export default function ClipStudio({
               <strong>Local Processor required</strong>
               <p>
                 Long-video import, YouTube links, transcription and clip export run on your own Windows PC.
-                Install the free Format Blink Local Processor, keep it running while you use Clip Studio, then check the connection again.
+                Install the free FormatBlink Local Processor, keep it running while you use Clip Studio, then check the connection again.
               </p>
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <a className="btn btn-primary" href="/FormatBlink-Clip-Processor-Setup.bat" download>
@@ -457,7 +457,7 @@ export default function ClipStudio({
                   Check again
                 </button>
               </div>
-              <small>Your source video is processed locally on this computer instead of being uploaded to Format Blink.</small>
+              <small>Your source video is processed locally on this computer instead of being uploaded to FormatBlink.</small>
             </div>
           )}
           {!jobId && (processorState === "connected" || !!configuredBase) && (
