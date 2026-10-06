@@ -1,9 +1,9 @@
 @echo off
 setlocal EnableExtensions
-title Format Blink Tools Processor Setup
+title FormatBlink Tools Processor Setup
 echo.
 echo ==========================================
-echo   Format Blink Tools Processor - Setup
+echo   FormatBlink Tools Processor - Setup
 echo ==========================================
 echo.
 set "ROOT=%LOCALAPPDATA%\FormatBlink\ToolsProcessor"
@@ -53,7 +53,7 @@ if errorlevel 1 (
   winget install -e --id UB-Mannheim.TesseractOCR --accept-package-agreements --accept-source-agreements
 )
 
-echo Downloading Format Blink tools processor...
+echo Downloading FormatBlink tools processor...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/AdnanAliCoder/Format-Blink/main/processor/tools/server.py' -OutFile ($env:ROOT+'\server.py'); Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/AdnanAliCoder/Format-Blink/main/processor/tools/convert.py' -OutFile ($env:ROOT+'\convert.py'); Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/AdnanAliCoder/Format-Blink/main/processor/tools/requirements.txt' -OutFile ($env:ROOT+'\requirements.txt')"
 if errorlevel 1 (
   echo ERROR: Could not download processor files.
@@ -87,7 +87,7 @@ if errorlevel 1 (
 
 > "%STARTER%" echo @echo off
 >>"%STARTER%" echo setlocal EnableExtensions
->>"%STARTER%" echo title Format Blink Tools Processor
+>>"%STARTER%" echo title FormatBlink Tools Processor
 >>"%STARTER%" echo set "ROOT=%%LOCALAPPDATA%%\FormatBlink\ToolsProcessor"
 >>"%STARTER%" echo set "VPY=%%LOCALAPPDATA%%\FormatBlink\ToolsProcessor\.venv\Scripts\python.exe"
 >>"%STARTER%" echo set "FORMAT_BLINK_LOCAL=1"
@@ -98,7 +98,7 @@ if errorlevel 1 (
 >>"%STARTER%" echo   pause
 >>"%STARTER%" echo   exit /b 1
 >>"%STARTER%" echo ^)
->>"%STARTER%" echo echo Checking for Format Blink Tools Processor updates...
+>>"%STARTER%" echo echo Checking for FormatBlink Tools Processor updates...
 >>"%STARTER%" echo powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $base='https://raw.githubusercontent.com/AdnanAliCoder/Format-Blink/main/processor/tools/'; foreach($name in @('server.py','convert.py','requirements.txt')){$tmp=Join-Path $env:TEMP ('formatblink-'+$name); Invoke-WebRequest -UseBasicParsing ($base+$name) -OutFile $tmp; Move-Item -Force $tmp (Join-Path $env:ROOT $name)}" ^>nul 2^>^&1
 >>"%STARTER%" echo if errorlevel 1 echo WARNING: Update check failed. Starting the installed processor version.
 >>"%STARTER%" echo "%%VPY%%" -m pip install --disable-pip-version-check -q -r "%%ROOT%%\requirements.txt"
@@ -110,7 +110,7 @@ if errorlevel 1 (
 >>"%STARTER%" echo for /r "%%LOCALAPPDATA%%\Microsoft\WinGet\Packages" %%%%F in ^(ffmpeg.exe^) do if exist "%%%%F" set "PATH=%%%%~dpF;%%PATH%%"
 >>"%STARTER%" echo cd /d "%%ROOT%%"
 >>"%STARTER%" echo echo.
->>"%STARTER%" echo echo Format Blink Tools Processor is running on http://127.0.0.1:8766
+>>"%STARTER%" echo echo FormatBlink Tools Processor is running on http://127.0.0.1:8766
 >>"%STARTER%" echo echo Keep this window open while using PDF, Image or Video server tools.
 >>"%STARTER%" echo echo.
 >>"%STARTER%" echo "%%VPY%%" -m uvicorn server:app --host 127.0.0.1 --port 8766 --workers 1
@@ -118,11 +118,11 @@ if errorlevel 1 (
 >>"%STARTER%" echo echo Processor stopped.
 >>"%STARTER%" echo pause
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws=New-Object -ComObject WScript.Shell; $s=$ws.CreateShortcut([Environment]::GetFolderPath('Desktop')+'\Format Blink Tools Processor.lnk'); $s.TargetPath=$env:STARTER; $s.WorkingDirectory=$env:ROOT; $s.Save()"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws=New-Object -ComObject WScript.Shell; $s=$ws.CreateShortcut([Environment]::GetFolderPath('Desktop')+'\FormatBlink Tools Processor.lnk'); $s.TargetPath=$env:STARTER; $s.WorkingDirectory=$env:ROOT; $s.Save()"
 
 echo.
 echo Setup complete.
-echo Desktop shortcut: Format Blink Tools Processor
+echo Desktop shortcut: FormatBlink Tools Processor
 echo Starting it now...
 start "" "%STARTER%"
 pause
