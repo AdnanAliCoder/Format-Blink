@@ -35,16 +35,16 @@ export async function checkToolsProcessor(base: string, slug: string, signal: Ab
     });
   } catch {
     signal.throwIfAborted();
-    throw new Error('Format Blink cloud processor could not be reached or is still starting. Please retry shortly. No installation is needed.');
+    throw new Error('FormatBlink cloud processor could not be reached or is still starting. Please retry shortly. No installation is needed.');
   }
   signal.throwIfAborted();
-  if (!response.ok) throw new Error(`Format Blink cloud processor is unavailable (HTTP ${response.status}). Please retry shortly.`);
+  if (!response.ok) throw new Error(`FormatBlink cloud processor is unavailable (HTTP ${response.status}). Please retry shortly.`);
   const health = await response.json().catch(() => null);
   if (!health?.ok || !Array.isArray(health.tools) || !health.tools.includes(slug)) {
     throw new Error('The connected cloud service does not support this tool. The site administrator needs to check the Tools Processor connection.');
   }
   const capability = requiredToolCapability(slug);
   if (capability && (!Array.isArray(health.capabilities) || !health.capabilities.includes(capability))) {
-    throw new Error('Format Blink cloud processor is running an older release. The site administrator must redeploy the Modal tools service. No installation is needed on your device.');
+    throw new Error('FormatBlink cloud processor is running an older release. The site administrator must redeploy the Modal tools service. No installation is needed on your device.');
   }
 }
