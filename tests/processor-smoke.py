@@ -10,16 +10,16 @@ from docx import Document
 from openpyxl import Workbook,load_workbook
 from pptx import Presentation
 root=Path(os.environ.get('FIXTURE_DIR','/tmp/formatblink-fixtures'));root.mkdir(exist_ok=True)
-c=Canvas(str(root/'sample.pdf'),pagesize=(400,500));c.drawString(40,450,'Format Blink Test SECRET 123');
+c=Canvas(str(root/'sample.pdf'),pagesize=(400,500));c.drawString(40,450,'FormatBlink Test SECRET 123');
 for x in [40,150,260]: c.line(x,250,x,350)
 for y in [250,300,350]: c.line(40,y,260,y)
 c.drawString(50,320,'Name');c.drawString(160,320,'Score');c.drawString(50,270,'Adnan');c.drawString(160,270,'93');c.showPage();c.drawString(40,450,'Second page');c.save()
 im=Image.new('RGB',(1000,300),'white');d=ImageDraw.Draw(im);d.text((30,70),'FORMAT BLINK TEST 123',font=ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',48),fill='black');d.rectangle((700,50,930,250),fill=(20,130,190));im.save(root/'text.png')
 c=Canvas(str(root/'scanned.pdf'),pagesize=(1000,300));c.drawImage(str(root/'text.png'),0,0,width=1000,height=300);c.save()
-doc=Document();doc.add_paragraph('Format Blink Word fixture');doc.save(root/'sample.docx')
+doc=Document();doc.add_paragraph('FormatBlink Word fixture');doc.save(root/'sample.docx')
 w=Workbook();w.active.append(['Name','Score']);w.active.append(['Adnan',93]);w.save(root/'sample.xlsx')
-p=Presentation();p.slides.add_slide(p.slide_layouts[5]).shapes.title.text='Format Blink presentation';p.save(root/'sample.pptx')
-(root/'sample.html').write_text('<h1>Format Blink HTML</h1><p>Conversion verified</p>')
+p=Presentation();p.slides.add_slide(p.slide_layouts[5]).shapes.title.text='FormatBlink presentation';p.save(root/'sample.pptx')
+(root/'sample.html').write_text('<h1>FormatBlink HTML</h1><p>Conversion verified</p>')
 results={}
 for slug,name in [('pdf-to-word','sample.pdf'),('pdf-to-excel','sample.pdf'),('pdf-to-powerpoint','sample.pdf'),('word-to-pdf','sample.docx'),('excel-to-pdf','sample.xlsx'),('powerpoint-to-pdf','sample.pptx'),('protect-pdf','sample.pdf'),('ocr-pdf','scanned.pdf'),('image-to-text','text.png'),('html-to-pdf','sample.html')]:
  try:
@@ -59,7 +59,7 @@ with tempfile.TemporaryDirectory() as tmp:
  out=convert('pdf-to-powerpoint',root/'sample.pdf',{'language':'eng'},Path(tmp))
  deck=Presentation(out)
  slide_text='\n'.join(shape.text for slide in deck.slides for shape in slide.shapes if getattr(shape,'has_text_frame',False))
- assert 'Format Blink Test' in slide_text and 'Second page' in slide_text
+ assert 'FormatBlink Test' in slide_text and 'Second page' in slide_text
  results['pdf-to-powerpoint-editable-text']='PASS'
 print(json.dumps(results,indent=2));(root/'processor-results.json').write_text(json.dumps(results,indent=2))
 
