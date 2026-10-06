@@ -1,4 +1,4 @@
-# Format Blink processing architecture
+# FormatBlink processing architecture
 
 ## Goal
 
