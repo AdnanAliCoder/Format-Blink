@@ -22,7 +22,7 @@ async function loadConfig():Promise<Config>{
       if(rows[0]?.value)return withProcessors(mergeConfig(rows[0].value));
     }
   }catch(error){
-    console.error('Format Blink settings database is unavailable; using defaults.',error);
+    console.error('FormatBlink settings database is unavailable; using defaults.',error);
   }
 
   const envValue=process.env.FORMAT_BLINK_CONFIG_JSON;
