@@ -19,7 +19,7 @@ Verification: production Next build/typecheck; converter smoke tests; tools HTTP
 
 ## Cloud connection repair
 
-- `FORMAT_BLINK_TOOLS_PROCESSOR_URL` (then `TOOLS_PROCESSOR_URL`) takes priority over old saved tool settings. Missing or local tool URLs resolve to the Format Blink Modal endpoint. Clip Studio configuration is separate.
+- `FORMAT_BLINK_TOOLS_PROCESSOR_URL` (then `TOOLS_PROCESSOR_URL`) takes priority over old saved tool settings. Missing or local tool URLs resolve to the FormatBlink Modal endpoint. Clip Studio configuration is separate.
 - The health check allows 90 seconds for a cold container and distinguishes connectivity/HTTP errors from a confirmed capability mismatch. Cancellation remains cancellable.
 - The previous workflow could finish green while skipping deployment when Modal secrets were missing. It now fails explicitly, then verifies the deployed version and capabilities after a successful deploy.
 - For automatic updates, add `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` in GitHub repository Settings → Secrets and variables → Actions. Rerun **Deploy Modal Tools Processor**. Never put token values in source files or chat.
