@@ -50,10 +50,10 @@ export default function Login({
   ];
 
   return <div className={'auth-page '+(signup?'auth-signup':'auth-login')}>
-    <section className="auth-top" aria-label={signup?'Create a FormatBlink account':'Sign in to FormatBlink'}>
+    <section className="auth-top" aria-label={signup?'Create a ConverToolIn account':'Sign in to ConverToolIn'}>
       <span className="eyebrow"><Icon name="check" size={12}/>{signup?'Start free. Upgrade anytime.':'One account. One workspace.'}</span>
-      <h1 className="auth-title">{signup?'Create your ':'Welcome to your '}<span className="accent">{signup?'FormatBlink':'file toolbox.'}</span></h1>
-      <p className="auth-desc">{signup?'One account for every file tool. Sign up once and use it across all your devices.':'Everything you need to work with your files, together in FormatBlink.'}</p>
+      <h1 className="auth-title">{signup?'Create your ':'Welcome to your '}<span className="accent">{signup?'ConverToolIn':'file toolbox.'}</span></h1>
+      <p className="auth-desc">{signup?'One account for every file tool. Sign up once and use it across all your devices.':'Everything you need to work with your files, together in ConverToolIn.'}</p>
       <div className="shortcut-cards auth-shortcuts">
         {shortcuts.map(([icon,label,key,href])=><a href={href} className={'sc-card '+key} key={label}>
           <span className="sc-icon"><Icon name={icon} size={18}/></span><span>{label}</span>
@@ -80,7 +80,7 @@ export default function Login({
       </aside>
 
       <section className="auth-card">
-        <span className="eyebrow"><Icon name="check" size={12}/>{signup?'Create account':'FormatBlink account'}</span>
+        <span className="eyebrow"><Icon name="check" size={12}/>{signup?'Create account':'ConverToolIn account'}</span>
         <h2>{title||(signup?'Get started for free':'Welcome back')}</h2>
         <p className="sub">{description||(signup?'No credit card required.':'Sign in to your workspace.')}</p>
         <form onSubmit={submit}>
@@ -91,7 +91,7 @@ export default function Login({
           {error&&<p role="alert" className="error-message">{error}</p>}
           <button className="auth-btn" disabled={busy}>{busy?'Please wait…':signup?'Create account':'Log in'}{!busy&&<Icon name="chevron" size={16}/>}</button>
         </form>
-        <p className="auth-foot">{signup?'Already have an account?':'New to FormatBlink?'} <a href={signup?'/login':'/signup'}>{signup?'Log in':'Create account'}</a></p>
+        <p className="auth-foot">{signup?'Already have an account?':'New to ConverToolIn?'} <a href={signup?'/login':'/signup'}>{signup?'Log in':'Create account'}</a></p>
       </section>
     </div>
   </div>;
