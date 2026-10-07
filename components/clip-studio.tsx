@@ -204,7 +204,7 @@ export default function ClipStudio({
     if (base) return true;
     setProcessorState("missing");
     setError(
-      "FormatBlink Local Processor is not running. Install it on this Windows PC, keep its window open, allow local network access in browser site settings, then click Check again.",
+      "ConverToolIn Local Processor is not running. Install it on this Windows PC, keep its window open, allow local network access in browser site settings, then click Check again.",
     );
     return false;
   }
@@ -439,7 +439,7 @@ export default function ClipStudio({
           </div>
           {!jobId && processorState === "checking" && (
             <div className="notice" role="status">
-              Checking for the FormatBlink Local Processor…
+              Checking for the ConverToolIn Local Processor…
             </div>
           )}
           {!jobId && processorState === "missing" && !configuredBase && (
@@ -447,17 +447,17 @@ export default function ClipStudio({
               <strong>Local Processor required</strong>
               <p>
                 Long-video import, YouTube links, transcription and clip export run on your own Windows PC.
-                Install the free FormatBlink Local Processor, keep it running while you use Clip Studio, then check the connection again.
+                Install the free ConverToolIn Local Processor, keep it running while you use Clip Studio, then check the connection again.
               </p>
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <a className="btn btn-primary" href="/FormatBlink-Clip-Processor-Setup.bat" download>
+                <a className="btn btn-primary" href="/ConverToolIn-Clip-Processor-Setup.bat" download>
                   Download for Windows
                 </a>
                 <button className="btn btn-light" type="button" onClick={() => void checkLocalProcessor()}>
                   Check again
                 </button>
               </div>
-              <small>Your source video is processed locally on this computer instead of being uploaded to FormatBlink.</small>
+              <small>Your source video is processed locally on this computer instead of being uploaded to ConverToolIn.</small>
             </div>
           )}
           {!jobId && (processorState === "connected" || !!configuredBase) && (
