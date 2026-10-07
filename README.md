@@ -1,6 +1,6 @@
-# FormatBlink
+# ConverToolIn
 
-Combined PDF, image, video and Clip Studio website, using the supplied FormatBlink icon with a text-based FormatBlink brand name.
+Combined PDF, image, video and Clip Studio website, using the supplied ConverToolIn icon with a text-based ConverToolIn brand name.
 
 ## What is included
 - All original browser PDF, image and video tools, with their original conversion engines.
@@ -68,7 +68,7 @@ The catalogue contains **93 conversion tools: 29 PDF, 35 image and 29 video**, p
 
 ### Processing priority
 
-FormatBlink is intentionally **device-first**:
+ConverToolIn is intentionally **device-first**:
 
 1. **On-device first** — all existing browser tools plus 26 of the 39 added tools run in the user's browser. This keeps conversion CPU/RAM on the user's device and avoids uploading the file.
 2. **Dedicated tools processor only when browser processing is not practical** — 13 tools use `processor/tools`: Office conversion, OCR, PDF password operations, HTML-to-PDF, background removal and transcription.
