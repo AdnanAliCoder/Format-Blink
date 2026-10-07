@@ -12,19 +12,19 @@ export function siteOrigin(value:string){
 export const indexablePaths=()=>pagePaths().filter(p=>!excluded.has(p));
 export function pageMetadata(path:string,c:Config):Metadata{
   const page=pageData(path,c),origin=siteOrigin(c.siteUrl);
-  const title=path==='/'?c.siteTitle:page.title+' | FormatBlink';
+  const title=path==='/'?c.siteTitle:page.title+' | ConverToolIn';
   const description=page.description||c.description;
   const url=origin+path;
   return {title,description,metadataBase:new URL(origin),alternates:{canonical:url},
     robots:['/admin','/account','/login','/signup'].includes(path)?{index:false,follow:false}:undefined,
-    openGraph:{title,description,url,siteName:'FormatBlink',type:'website',images:[{url:origin+'/brand-icon.webp',alt:'FormatBlink'}]},
-    twitter:{card:'summary',title,description,images:[origin+'/brand-icon.webp']},
+    openGraph:{title,description,url,siteName:'ConverToolIn',type:'website',images:[{url:origin+'/convertoolin-logo.webp',alt:'ConverToolIn'}]},
+    twitter:{card:'summary',title,description,images:[origin+'/convertoolin-logo.webp']},
     verification:{google:c.verificationToken||undefined}};
 }
 export function structuredData(path:string,c:Config){
   const origin=siteOrigin(c.siteUrl),page=pageData(path,c);
-  const graph:object[]=[{'@type':'WebSite','@id':origin+'/#website',name:'FormatBlink',url:origin+'/'},
-    {'@type':'Organization','@id':origin+'/#organization',name:'FormatBlink',url:origin+'/',logo:origin+'/icon-192.png'}];
+  const graph:object[]=[{'@type':'WebSite','@id':origin+'/#website',name:'ConverToolIn',url:origin+'/'},
+    {'@type':'Organization','@id':origin+'/#organization',name:'ConverToolIn',url:origin+'/',logo:origin+'/apple-touch-icon.png'}];
   if(path!=='/'){
     const parts=path.split('/').filter(Boolean);
     graph.push({'@type':'BreadcrumbList',itemListElement:[{ '@type':'ListItem',position:1,name:'Home',item:origin+'/'},...parts.map((_,i)=>{
