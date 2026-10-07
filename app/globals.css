@@ -1076,3 +1076,5 @@ html[data-theme="dark"] .btn.secondary:hover{border-color:#4D86C4!important;colo
 .footer-column a,
 .footer-social .social-links,
 .footer-social .social-links a{ text-align:left!important }
+
+.fb-brand-logo{display:block;width:220px;max-width:100%;height:auto;object-fit:contain}
