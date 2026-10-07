@@ -1,15 +1,15 @@
 # Clip Studio processor
 
-## Free local-PC mode (recommended for FormatBlink)
+## Free local-PC mode (recommended for ConverToolIn)
 
-Clip Studio can run its heavy work on each user's own Windows PC. The website checks `http://127.0.0.1:8765/health`. If the local service is not running, the Clip Studio page offers `/FormatBlink-Clip-Processor-Setup.bat`.
+Clip Studio can run its heavy work on each user's own Windows PC. The website checks `http://127.0.0.1:8765/health`. If the local service is not running, the Clip Studio page offers `/ConverToolIn-Clip-Processor-Setup.bat`.
 
 The Windows setup installs/configures Python 3.11, FFmpeg, yt-dlp, Faster Whisper and the FastAPI processor, creates a Desktop shortcut, and starts the service bound to loopback only. Users must keep the processor window open while importing long videos, creating transcripts or exporting clips.
 
 Local processing flow:
 
 ```
-FormatBlink website -> 127.0.0.1:8765 -> yt-dlp / FFmpeg / Faster Whisper -> transcript + rendered clips
+ConverToolIn website -> 127.0.0.1:8765 -> yt-dlp / FFmpeg / Faster Whisper -> transcript + rendered clips
 ```
 
 Videos and temporary outputs stay under the user's local app-data directory and expire according to `MEDIA_TTL_HOURS`. The local service is not exposed to the LAN because Uvicorn binds to `127.0.0.1`.
