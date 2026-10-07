@@ -14,7 +14,7 @@ async function remote(t:Tool,file:File,s:Settings,p:Progress,signal:AbortSignal)
   p(15,'Uploading and converting your file… Keep this tab open.');
   let response:Response;
   try{response=await fetch(`${processor}/api/tools/${t.slug}`,{method:'POST',body:form,signal});}
-  catch{signal.throwIfAborted();throw new Error('FormatBlink cloud processor could not be reached. Please retry shortly. No installation is needed.');}
+  catch{signal.throwIfAborted();throw new Error('ConverToolIn cloud processor could not be reached. Please retry shortly. No installation is needed.');}
   if(!response.ok){const error=await response.json().catch(()=>null);throw new Error(typeof error?.detail==='string'?error.detail:`Processing service returned ${response.status}. Please retry later.`);}
   const expected=types[t.output];if(expected&&!response.headers.get('content-type')?.includes(expected))throw new Error('The processor returned an unexpected file type.');
   p(95,'Receiving your converted file…');
